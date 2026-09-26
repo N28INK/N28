@@ -3,14 +3,20 @@
 ## Qué es el negocio
 City Cars Houston NO es un dealer ni un prestamista. Es un puente entre compradores de Houston
 (hispanos y angloparlantes) y muchos dealers con licencia en Texas. La página muestra un catálogo
-amplio (trocas, SUV, sedanes) sin cotizaciones: solo año, millas y una referencia de inicial.
+amplio (trocas, SUV, sedanes) sin cotizaciones ni montos: solo la descripción de cada vehículo (año, millas, tipo, equipamiento).
 Toda la conversión va a WhatsApp (+1 281 602 7044). No hay backend ni base de datos.
 
 ## Estado actual
-- `index.html`: sitio de un solo archivo (HTML + CSS + JS vanilla, sin dependencias).
-  Identidad "letrero de autopista de Texas": verde #0F5A3C, amarillo #F5B700, asfalto #262C2F, fuente Overpass.
-- `img/`: 20 fotos reales (2 por vehículo). Los nombres se asignaron según el orden de subida:
-  VERIFICA visualmente cada par antes de usarlo.
+- Sitio estático en `public/` (se publica solo esa carpeta en Cloudflare Pages; ver `DEPLOY.md`).
+  `/es/` y `/en/` con hreflang, `/es/privacidad/`, `/en/privacy/`, `404.html`, `_headers`, `_redirects`.
+- `public/app.js`: toda la lógica y el INVENTARIO (objeto `VEHICLES`, ES/EN, `draft: true` = datos borrador).
+  `public/styles.css`, fuente Overpass autoalojada en `public/fonts/`.
+- Identidad "letrero de autopista de Texas" (aprobada por el dueño): verde #0F5A3C, amarillo #F5B700, asfalto #262C2F.
+- `public/img/`: 10 vehículos × 2 fotos en WebP (640/1200 px). Pares verificados visualmente;
+  Yukon renombrada a "azul" y Wrangler a "verde" (arena). El dueño confirmó tener permiso de los dealers.
+- Horario: lunes a domingo, 9 am – 8 pm. Respuesta el mismo día por WhatsApp (confirmado por el dueño).
+- Las tareas 1–8 de abajo están hechas; quedan pendientes los textos `[REVISAR CON ABOGADO]` / `[COMPLETAR]`
+  y confirmar año/millas/condición de cada vehículo con el dealer.
 
 ## Tareas pendientes (en este orden)
 1. **Inventario real**: reemplaza los 6 vehículos de ejemplo por los 10 de `img/`
