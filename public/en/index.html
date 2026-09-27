@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>City Cars Houston · Dealer matching for real-life credit</title>
+<title>City Cars Houston TX · Dealer matching for real-life credit</title>
 <meta name="description" content="Trucks and SUVs in Houston. One WhatsApp conversation and we connect you with licensed Texas dealers who work with your situation: bad credit, no credit, repo, bankruptcy or ITIN.">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="theme-color" content="#0F5A3C">
@@ -11,7 +11,7 @@
 <link rel="alternate" hreflang="es" href="https://tudominio.com/es/">
 <link rel="alternate" hreflang="en" href="https://tudominio.com/en/">
 <link rel="alternate" hreflang="x-default" href="https://tudominio.com/es/">
-<meta property="og:title" content="City Cars Houston · One conversation, many dealers">
+<meta property="og:title" content="City Cars Houston TX · One conversation, many dealers">
 <meta property="og:description" content="We connect you with licensed Houston dealers. You decide.">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="en_US">
@@ -20,7 +20,7 @@
 <link rel="stylesheet" href="/styles.css">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"Organization","name":"City Cars Houston","description":"Bilingual service that connects Houston car buyers with licensed Texas dealers. Not a dealer or a lender.","url":"https://tudominio.com/en/","areaServed":"Houston, TX","knowsLanguage":["es","en"],"contactPoint":{"@type":"ContactPoint","telephone":"+1-281-602-7044","contactType":"customer service","availableLanguage":["Spanish","English"],"hoursAvailable":{"@type":"OpeningHoursSpecification","dayOfWeek":["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],"opens":"09:00","closes":"20:00"}}}
+{"@context":"https://schema.org","@type":"Organization","name":"City Cars Houston TX","description":"Bilingual service that connects Houston car buyers with licensed Texas dealers. Not a dealer or a lender.","url":"https://tudominio.com/en/","areaServed":"Houston, TX","knowsLanguage":["es","en"],"contactPoint":{"@type":"ContactPoint","telephone":"+1-281-602-7044","contactType":"customer service","availableLanguage":["Spanish","English"],"hoursAvailable":{"@type":"OpeningHoursSpecification","dayOfWeek":["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],"opens":"09:00","closes":"20:00"}}}
 </script>
 <script src="/app.js" defer></script>
 </head>
@@ -29,11 +29,14 @@
 
 <header class="top">
   <div class="wrap">
-    <a class="brand" href="/en/" aria-label="City Cars Houston, home">
-      <span class="brand-mark" aria-hidden="true">CC</span>
-      <span class="brand-name">City Cars Houston<small>Dealer matching for real-life credit</small></span>
+    <a class="brand" href="/en/" aria-label="City Cars Houston TX, home">
+      <img class="brand-mark" src="/img/logo-puente.svg" width="42" height="42" alt="Bridge connecting buyers with dealers in Houston, TX">
+      <span class="brand-name">City Cars Houston TX<small>Dealer matching for real-life credit</small></span>
     </a>
-    <nav class="nav" aria-label="Main">
+    <button type="button" class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="nav" aria-label="Open menu">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+    </button>
+    <nav class="nav" id="nav" aria-label="Main">
       <a href="#inventario">Inventory</a>
       <a href="#como-funciona">How it works</a>
       <a href="#plan">Build your plan</a>
@@ -62,7 +65,7 @@
             <h1 id="hero-title">One conversation. Many dealers.</h1>
             <p>Tell us your story once. We connect you with licensed Houston dealers who work with your situation, so you don't spend your Saturday going lot to lot. Your credit story isn't the end of the road.</p>
             <div class="sign-panels">
-              <div><b>Trucks &amp; SUVs</b><span>real photos, real vehicles</span></div>
+              <div><b>Trucks &amp; SUVs</b><span>with photos from our dealers</span></div>
               <div><b>Bad credit?</b><span>many of our dealers work with it</span></div>
               <div><b>No pressure</b><span>you decide who to talk to</span></div>
             </div>
@@ -84,7 +87,7 @@
             <span>Message us on WhatsApp<small>Every day, 9 am to 8 pm</small></span>
           </a>
         </div>
-        <p class="start-note">City Cars Houston is not a dealer or a lender. We connect you with licensed Texas dealers.</p>
+        <p class="start-note">City Cars Houston TX is not a dealer or a lender. We connect you with licensed Texas dealers.</p>
       </div>
     </div>
   </section>
@@ -115,8 +118,7 @@
         <a class="btn" id="favlink" href="https://wa.me/12816027044" target="_blank" rel="noopener noreferrer">Ask about my saved vehicles</a>
       </div>
       <div class="inv-note">
-        <p>Real photos of each vehicle, shared with the dealers' permission. Subject to prior sale: confirm with the dealer before you visit.</p>
-        <p>Details marked <b>DRAFT</b> (year, mileage and condition) are for reference only and get confirmed with the dealer on WhatsApp. Ask for the vehicle history and title status before you decide.</p>
+        <p>Images of each vehicle shared with the dealers' permission. Inventory subject to availability; confirm with the dealer before you visit.</p>
       </div>
     </div>
   </section>
@@ -125,7 +127,7 @@
     <div class="wrap dark-grid">
       <div>
         <h2 id="no-title">What we DON'T do</h2>
-        <p class="lead">Straight answers from the first message. If someone claiming to be City Cars Houston does anything on this list, it isn't us.</p>
+        <p class="lead">Straight answers from the first message. If someone claiming to be City Cars Houston TX does anything on this list, it isn't us.</p>
         <p class="official">Our only official WhatsApp is (281) 602-7044.</p>
       </div>
       <ul class="nolist">
@@ -196,8 +198,8 @@
               <input type="text" id="f-ciudad" name="ciudad" autocomplete="address-level2" maxlength="60" list="ciudades" required>
               <datalist id="ciudades"><option value="Houston"><option value="Pasadena"><option value="Katy"><option value="Channelview"><option value="Sugar Land"><option value="Pearland"><option value="Baytown"><option value="Spring"><option value="Humble"><option value="Cypress"></datalist>
             </div>
-            <label class="consent"><input type="checkbox" id="f-consent" required><span>I accept the <a href="/en/privacy/" target="_blank" rel="noopener">privacy policy</a> and agree that City Cars Houston may reply on WhatsApp or call me. <span class="flag">[REVISAR CON ABOGADO]</span></span></label>
-            <label class="consent"><input type="checkbox" id="f-share"><span>I authorize sharing this information with partner dealers. <small>(Optional. If you leave it unchecked, we'll ask before passing your details to a dealer.)</small> <span class="flag">[REVISAR CON ABOGADO]</span></span></label>
+            <label class="consent"><input type="checkbox" id="f-consent" required><span>I accept the <a href="/en/privacy/" target="_blank" rel="noopener">privacy policy</a> and agree that City Cars Houston TX may reply on WhatsApp or call me.</span></label>
+            <label class="consent"><input type="checkbox" id="f-share"><span>I authorize sharing this information with partner dealers. <small>(Optional. If you leave it unchecked, we'll ask before passing your details to a dealer.)</small></span></label>
           </fieldset>
 
           <div class="step-nav">
@@ -262,9 +264,9 @@
   <div class="wrap">
     <div class="foot-grid">
       <div>
-        <a class="brand" href="/en/" aria-label="City Cars Houston, home">
-          <span class="brand-mark" aria-hidden="true">CC</span>
-          <span class="brand-name">City Cars Houston<small>Dealer matching for real-life credit</small></span>
+        <a class="brand" href="/en/" aria-label="City Cars Houston TX, home">
+          <img class="brand-mark" src="/img/logo-puente.svg" width="42" height="42" alt="Bridge connecting buyers with dealers in Houston, TX">
+          <span class="brand-name">City Cars Houston TX<small>Dealer matching for real-life credit</small></span>
         </a>
         <p class="foot-about">One conversation, many dealers. We speak English and Spanish.</p>
         <a class="btn" data-wa href="https://wa.me/12816027044" target="_blank" rel="noopener noreferrer">Message us on WhatsApp</a>
@@ -284,10 +286,10 @@
       </div>
     </div>
     <div class="legal">
-      <p>City Cars Houston is not a dealer or lender. All vehicles are offered and sold by licensed Texas dealers. Approval, price, down payment, APR and terms are set by the dealer or lender and depend on your credit and situation. <span class="flag">[REVISAR CON ABOGADO]</span></p>
+      <p>City Cars Houston TX is not a dealer or lender. All vehicles are offered and sold by licensed Texas dealers. Approval, price, down payment, APR and terms are set by the dealer or lender and depend on your credit and situation.</p>
       <p>We never ask for your Social Security number or a deposit on WhatsApp. Our only official WhatsApp is (281) 602-7044.</p>
-      <p>Chevrolet, GMC, Jeep and Kia are trademarks of their respective owners. City Cars Houston is not affiliated with them.</p>
-      <p>© <span id="year">2026</span> City Cars Houston.</p>
+      <p>Chevrolet, GMC, Jeep and Kia are trademarks of their respective owners. City Cars Houston TX is not affiliated with them.</p>
+      <p>© <span id="year">2026</span> City Cars Houston TX.</p>
     </div>
   </div>
 </footer>
@@ -295,6 +297,15 @@
 <div class="mobilebar">
   <a class="btn btn-primary" href="#plan">Build your plan</a>
   <a class="btn btn-wa" data-wa href="https://wa.me/12816027044" target="_blank" rel="noopener noreferrer">WhatsApp</a>
+</div>
+
+<div class="modal-overlay" id="modal-overlay" hidden>
+  <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">
+    <button type="button" class="modal-close" id="modal-close" aria-label="Close">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+    </button>
+    <div id="modal-content" class="modal-content"></div>
+  </div>
 </div>
 </body>
 </html>

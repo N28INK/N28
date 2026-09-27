@@ -15,8 +15,16 @@ Toda la conversión va a WhatsApp (+1 281 602 7044). No hay backend ni base de d
 - `public/img/`: 10 vehículos × 2 fotos en WebP (640/1200 px). Pares verificados visualmente;
   Yukon renombrada a "azul" y Wrangler a "verde" (arena). El dueño confirmó tener permiso de los dealers.
 - Horario: lunes a domingo, 9 am – 8 pm. Respuesta el mismo día por WhatsApp (confirmado por el dueño).
-- Las tareas 1–8 de abajo están hechas; quedan pendientes los textos `[REVISAR CON ABOGADO]` / `[COMPLETAR]`
-  y confirmar año/millas/condición de cada vehículo con el dealer.
+- Las tareas 1–8 de abajo están hechas. Los textos legales fueron revisados y aprobados por el dueño;
+  ya no llevan la marca `[REVISAR CON ABOGADO]`. Sigue pendiente confirmar año/millas/condición de
+  cada vehículo con el dealer y llenar los `[COMPLETAR]` de la política de privacidad.
+- Nombre de marca definitivo en todo el sitio: "City Cars Houston TX".
+- El inventario ya no usa el mecanismo `draft` (se quitó por decisión del dueño): los 10 vehículos se
+  publican directamente, sin insignia de borrador.
+- Ficha de especificaciones: modal accesible desde "Ver más" o al hacer clic en la foto de un vehículo
+  (`openDetail()` en `app.js`), con galería ampliada, specs y botones de acción.
+- Logo "puente" (`public/img/logo-puente.svg`) en el header de todas las páginas; menú hamburguesa
+  (`#nav-toggle`) para el nav en pantallas ≤960px.
 
 ## Tareas pendientes (en este orden)
 1. **Inventario real**: reemplaza los 6 vehículos de ejemplo por los 10 de `img/`
@@ -65,4 +73,5 @@ Toda la conversión va a WhatsApp (+1 281 602 7044). No hay backend ni base de d
 - No agregar dependencias ni frameworks sin preguntar.
 - No inventar datos de vehículos, reseñas ni número de dealers asociados.
 - No usar logos de marcas (Chevrolet, GMC, Jeep, Kia) como elementos de marca.
-- Cualquier texto legal lleva marca `[REVISAR CON ABOGADO]` hasta que el dueño lo confirme.
+- Cualquier texto legal *nuevo* lleva marca `[REVISAR CON ABOGADO]` hasta que el dueño lo confirme
+  (los textos existentes ya fueron confirmados; ver "Estado actual").

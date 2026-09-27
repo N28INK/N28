@@ -11,8 +11,6 @@
 
   // =====================================================================
   //  INVENTARIO — el único lugar que hay que editar para cambiar carros.
-  //  draft: true  → año, millas y condición son GENÉRICOS (BORRADOR).
-  //                 Cambiar a false solo cuando el dealer confirme los datos.
   //  drive: "4x4" solo cuando las fotos lo confirman (Z71, Rubicon);
   //         null = "por confirmar".
   //  seats: rango según configuración de fábrica; confirmar con el dealer.
@@ -22,7 +20,7 @@
   var VEHICLES = [
     {
       id: "CCH-01", slug: "chevrolet-tahoe-rst-rojo", make: "Chevrolet", model: "Tahoe RST", type: "suv",
-      color: { es: "Rojo", en: "Red" }, year: "2025", miles: "25,000", condition: "used", draft: true,
+      color: { es: "Rojo", en: "Red" }, year: "2025", miles: "25,000", condition: "used",
       seats: { es: "7 u 8 pasajeros", en: "7 or 8 seats" }, rows3: true, drive: null, dealer: "",
       photos: ["tahoe-rst-rojo-1", "tahoe-rst-rojo-2"],
       seen: { es: ["3 filas", "Estribos", "Rines negros", "Escape doble", "Vidrios polarizados"],
@@ -32,7 +30,7 @@
     },
     {
       id: "CCH-02", slug: "gmc-yukon-denali-azul", make: "GMC", model: "Yukon Denali", type: "suv",
-      color: { es: "Azul oscuro", en: "Dark blue" }, year: "2022", miles: "45,000", condition: "used", draft: true,
+      color: { es: "Azul oscuro", en: "Dark blue" }, year: "2022", miles: "45,000", condition: "used",
       seats: { es: "7 u 8 pasajeros", en: "7 or 8 seats" }, rows3: true, drive: null, dealer: "",
       photos: ["yukon-denali-azul-1", "yukon-denali-azul-2"],
       seen: { es: ["3 filas", "Parrilla cromada", "Rines cromados", "Escape doble"],
@@ -42,7 +40,7 @@
     },
     {
       id: "CCH-03", slug: "chevrolet-suburban-lt-gris", make: "Chevrolet", model: "Suburban LT", type: "suv",
-      color: { es: "Gris", en: "Gray" }, year: "2022", miles: "50,000", condition: "used", draft: true,
+      color: { es: "Gris", en: "Gray" }, year: "2022", miles: "50,000", condition: "used",
       seats: { es: "7 u 8 pasajeros", en: "7 or 8 seats" }, rows3: true, drive: null, dealer: "",
       photos: ["suburban-lt-gris-1", "suburban-lt-gris-2"],
       seen: { es: ["3 filas", "Estribos", "Rines plateados", "Parrilla cromada"],
@@ -52,7 +50,7 @@
     },
     {
       id: "CCH-04", slug: "jeep-wrangler-rubicon-verde", make: "Jeep", model: "Wrangler Rubicon", type: "suv",
-      color: { es: "Verde arena", en: "Sand green" }, year: "2024", miles: "15,000", condition: "used", draft: true,
+      color: { es: "Verde arena", en: "Sand green" }, year: "2024", miles: "15,000", condition: "used",
       seats: { es: "5 pasajeros", en: "5 seats" }, rows3: false, drive: "4x4", dealer: "",
       photos: ["wrangler-rubicon-verde-1", "wrangler-rubicon-verde-2"],
       seen: { es: ["4 puertas", "Llantas todo terreno", "Llanta de refacción", "Ganchos de arrastre", "Techo duro"],
@@ -62,7 +60,7 @@
     },
     {
       id: "CCH-05", slug: "chevrolet-suburban-rst-negro", make: "Chevrolet", model: "Suburban RST", type: "suv",
-      color: { es: "Negro", en: "Black" }, year: "2025", miles: "20,000", condition: "used", draft: true,
+      color: { es: "Negro", en: "Black" }, year: "2025", miles: "20,000", condition: "used",
       seats: { es: "7 u 8 pasajeros", en: "7 or 8 seats" }, rows3: true, drive: null, dealer: "",
       photos: ["suburban-rst-negro-1", "suburban-rst-negro-2"],
       seen: { es: ["3 filas", "Estribos", "Rines bicolor", "Escape doble"],
@@ -72,7 +70,7 @@
     },
     {
       id: "CCH-06", slug: "kia-telluride-plata", make: "Kia", model: "Telluride", type: "suv",
-      color: { es: "Plata", en: "Silver" }, year: "2022", miles: "40,000", condition: "used", draft: true,
+      color: { es: "Plata", en: "Silver" }, year: "2022", miles: "40,000", condition: "used",
       seats: { es: "7 u 8 pasajeros", en: "7 or 8 seats" }, rows3: true, drive: null, dealer: "",
       photos: ["telluride-plata-1", "telluride-plata-2"],
       seen: { es: ["3 filas", "Rines negros", "Detalles en negro"],
@@ -82,7 +80,7 @@
     },
     {
       id: "CCH-07", slug: "chevrolet-silverado-z71-negro", make: "Chevrolet", model: "Silverado Z71", type: "truck",
-      color: { es: "Negro", en: "Black" }, year: "2020", miles: "70,000", condition: "used", draft: true,
+      color: { es: "Negro", en: "Black" }, year: "2020", miles: "70,000", condition: "used",
       seats: { es: "5 o 6 pasajeros", en: "5 or 6 seats" }, rows3: false, drive: "4x4", dealer: "",
       photos: ["silverado-z71-negro-1", "silverado-z71-negro-2"],
       seen: { es: ["Cabina doble", "Estribos", "Viseras en ventanas", "Enganche de remolque", "Ganchos de arrastre"],
@@ -92,7 +90,7 @@
     },
     {
       id: "CCH-08", slug: "gmc-sierra-slt-blanca", make: "GMC", model: "Sierra SLT", type: "truck",
-      color: { es: "Blanca", en: "White" }, year: "2023", miles: "35,000", condition: "used", draft: true,
+      color: { es: "Blanca", en: "White" }, year: "2023", miles: "35,000", condition: "used",
       seats: { es: "5 o 6 pasajeros", en: "5 or 6 seats" }, rows3: false, drive: null, dealer: "",
       photos: ["sierra-slt-blanca-1", "sierra-slt-blanca-2"],
       seen: { es: ["Cabina doble", "Estribos", "Parrilla cromada", "Enganche de remolque"],
@@ -102,7 +100,7 @@
     },
     {
       id: "CCH-09", slug: "chevrolet-tahoe-z71-negro", make: "Chevrolet", model: "Tahoe Z71", type: "suv",
-      color: { es: "Negro", en: "Black" }, year: "2018", miles: "90,000", condition: "used", draft: true,
+      color: { es: "Negro", en: "Black" }, year: "2018", miles: "90,000", condition: "used",
       seats: { es: "7 u 8 pasajeros", en: "7 or 8 seats" }, rows3: true, drive: "4x4", dealer: "",
       photos: ["tahoe-z71-negro-1", "tahoe-z71-negro-2"],
       seen: { es: ["3 filas", "Estribos", "Llantas todo terreno"],
@@ -112,7 +110,7 @@
     },
     {
       id: "CCH-10", slug: "chevrolet-silverado-lt-negro", make: "Chevrolet", model: "Silverado LT", type: "truck",
-      color: { es: "Negro", en: "Black" }, year: "2023", miles: "30,000", condition: "used", draft: true,
+      color: { es: "Negro", en: "Black" }, year: "2023", miles: "30,000", condition: "used",
       seats: { es: "5 o 6 pasajeros", en: "5 or 6 seats" }, rows3: false, drive: null, dealer: "",
       photos: ["silverado-lt-negro-1", "silverado-lt-negro-2"],
       seen: { es: ["Cabina doble", "Estribos", "Rines negros grandes", "Enganche de remolque"],
@@ -126,25 +124,26 @@
   var T = {
     es: {
       types: { suv: "SUV", truck: "Troca" }, used: "Usado",
-      miles: "millas", draft: "BORRADOR", draftTitle: "Año, millas y condición por confirmar con el dealer",
+      miles: "millas",
       drive: "Tracción", driveTbd: "por confirmar", seen: "Se ve en las fotos", ideal: "Ideal para",
       dealerGeneric: "La ofrece un dealer con licencia en Houston.", dealerNamed: "La ofrece: ",
-      ask: "Preguntar", plan: "Armar plan", save: "Guardar ", photoOf: " de ", prev: "Foto anterior", next: "Foto siguiente",
+      ask: "Preguntar", plan: "Crear plan", save: "Guardar ", photoOf: " de ", prev: "Foto anterior", next: "Foto siguiente",
       altFront: " — vista delantera", altBack: " — vista trasera",
+      details: "Ver más", close: "Cerrar", specsTitle: "Especificaciones", year: "Año", milesLabel: "Millas", colorLabel: "Color", type: "Tipo", seatsLabel: "Pasajeros",
       filters: [["todos", "Todos"], ["truck", "Trocas"], ["suv", "SUV"], ["rows3", "3 filas"], ["4x4", "4x4 confirmada"]],
       empty: "No hay vehículos con ese filtro por ahora.",
       favOne: "Guardaste 1: ", favMany: function (n) { return "Guardaste " + n + " vehículos"; },
-      waGeneral: "Hola City Cars Houston, vi su página y quiero que me conecten con un dealer.",
-      waCar: function (v) { return "Hola City Cars Houston, me interesa la " + v + ". ¿Está disponible? ¿Me pueden mandar más fotos y video?"; },
-      waFavs: function (list) { return "Hola City Cars Houston, me interesan estos vehículos: " + list + ". ¿Siguen disponibles?"; },
+      waGeneral: "Hola City Cars Houston TX, vi su página y quiero que me conecten con un dealer.",
+      waCar: function (v) { return "Hola City Cars Houston TX, me interesa la " + v + ". ¿Está disponible? ¿Me pueden mandar más fotos y video?"; },
+      waFavs: function (list) { return "Hola City Cars Houston TX, me interesan estos vehículos: " + list + ". ¿Siguen disponibles?"; },
       undecided: "Todavía no decido", choose: "Elige una opción",
       cases: [
         { id: "familia", label: "Somos familia grande", text: "Tahoe, Suburban, Yukon y Telluride de 3 filas, con espacio para toda la familia y las sillas de los niños.", action: "Ver 3 filas", filter: "rows3" },
-        { id: "primer", label: "Es mi primer crédito", text: "Muchos de nuestros dealers trabajan con compradores sin crédito o con su primer crédito. Te decimos con quién conviene hablar.", action: "Arma tu plan", plan: true },
+        { id: "primer", label: "Es mi primer crédito", text: "Muchos de nuestros dealers trabajan con compradores sin crédito o con su primer crédito. Te decimos con quién conviene hablar.", action: "Crea tu plan", plan: true },
         { id: "trabajo", label: "La necesito para trabajar", text: "Trocas de cabina doble con enganche de remolque, listas para la obra.", action: "Ver trocas", filter: "truck" },
-        { id: "itin", label: "Tengo ITIN o matrícula", text: "Muchos de nuestros dealers trabajan con ITIN, matrícula consular o pasaporte. La aprobación la decide el dealer o el financiador.", action: "Arma tu plan", plan: true },
-        { id: "danado", label: "Mi crédito está dañado", text: "Crédito dañado, repo o bancarrota: algunos dealers trabajan con esas situaciones. Cuéntanos y te decimos con honestidad qué esperar.", action: "Arma tu plan", plan: true },
-        { id: "efectivo", label: "Me pagan en efectivo", text: "Si te pagan en efectivo o trabajas por tu cuenta, hay formas de comprobar ingresos. Te orientamos por WhatsApp.", action: "Arma tu plan", plan: true }
+        { id: "itin", label: "Tengo ITIN o matrícula", text: "Muchos de nuestros dealers trabajan con ITIN, matrícula consular o pasaporte. La aprobación la decide el dealer o el financiador.", action: "Crea tu plan", plan: true },
+        { id: "danado", label: "Mi crédito está dañado", text: "Crédito dañado, repo o bancarrota: algunos dealers trabajan con esas situaciones. Cuéntanos y te decimos con honestidad qué esperar.", action: "Crea tu plan", plan: true },
+        { id: "efectivo", label: "Me pagan en efectivo", text: "Si te pagan en efectivo o trabajas por tu cuenta, hay formas de comprobar ingresos. Te orientamos por WhatsApp.", action: "Crea tu plan", plan: true }
       ],
       down: ["Menos de $1,000", "$1,000 a $2,500", "$2,500 a $5,000", "Más de $5,000", "Prefiero decirlo en el chat"],
       income: ["Menos de $2,000", "$2,000 a $3,000", "$3,000 a $4,500", "Más de $4,500", "Prefiero decirlo en el chat"],
@@ -158,23 +157,24 @@
       noCase: "Sin indicar", noDocs: "Prefiero no decir", yes: "Sí", no: "Todavía no",
       noteNoId: "Si no tienes identificación a la mano, escríbenos igual: te decimos qué suelen aceptar los dealers en Texas.",
       noteShare: "No marcaste la autorización para compartir con dealers. Te contestamos igual y te pedimos permiso antes de pasar tus datos a un dealer.",
-      noteDecide: "La aprobación, el precio, la inicial y los términos los decide el dealer o el financiador, no City Cars Houston.",
-      msgHello: function (n, c) { return "Hola City Cars Houston, soy " + n + " de " + c + ". Armé mi plan en la página:"; },
+      noteDecide: "La aprobación, el precio, la inicial y los términos los decide el dealer o el financiador, no City Cars Houston TX.",
+      msgHello: function (n, c) { return "Hola City Cars Houston TX, soy " + n + " de " + c + ". Creé mi plan en la página:"; },
       msgEnd: "¿Con qué dealers me pueden conectar?"
     },
     en: {
       types: { suv: "SUV", truck: "Truck" }, used: "Used",
-      miles: "miles", draft: "DRAFT", draftTitle: "Year, mileage and condition to be confirmed with the dealer",
+      miles: "miles",
       drive: "Drive", driveTbd: "to be confirmed", seen: "Visible in the photos", ideal: "Great for",
       dealerGeneric: "Offered by a licensed Houston dealer.", dealerNamed: "Offered by: ",
       ask: "Ask about it", plan: "Build my plan", save: "Save ", photoOf: " of ", prev: "Previous photo", next: "Next photo",
       altFront: " — front view", altBack: " — rear view",
+      details: "See more", close: "Close", specsTitle: "Specifications", year: "Year", milesLabel: "Mileage", colorLabel: "Color", type: "Type", seatsLabel: "Seats",
       filters: [["todos", "All"], ["truck", "Trucks"], ["suv", "SUVs"], ["rows3", "3 rows"], ["4x4", "Confirmed 4x4"]],
       empty: "Nothing matches that filter right now.",
       favOne: "You saved 1: ", favMany: function (n) { return "You saved " + n + " vehicles"; },
-      waGeneral: "Hi City Cars Houston, I saw your website and I'd like to be matched with a dealer.",
-      waCar: function (v) { return "Hi City Cars Houston, I'm interested in the " + v + ". Is it still available? Can you send more photos and a video?"; },
-      waFavs: function (list) { return "Hi City Cars Houston, I'm interested in these vehicles: " + list + ". Are they still available?"; },
+      waGeneral: "Hi City Cars Houston TX, I saw your website and I'd like to be matched with a dealer.",
+      waCar: function (v) { return "Hi City Cars Houston TX, I'm interested in the " + v + ". Is it still available? Can you send more photos and a video?"; },
+      waFavs: function (list) { return "Hi City Cars Houston TX, I'm interested in these vehicles: " + list + ". Are they still available?"; },
       undecided: "Not sure yet", choose: "Choose one",
       cases: [
         { id: "familia", label: "Big family", text: "Three-row Tahoe, Suburban, Yukon and Telluride, with room for the whole family and the car seats.", action: "See 3-row SUVs", filter: "rows3" },
@@ -196,8 +196,8 @@
       noCase: "Not specified", noDocs: "Prefer not to say", yes: "Yes", no: "Not yet",
       noteNoId: "If you don't have an ID handy, message us anyway: we'll tell you what Texas dealers usually accept.",
       noteShare: "You didn't check the box to share with dealers. We'll still reply, and we'll ask your permission before passing anything to a dealer.",
-      noteDecide: "Approval, price, down payment and terms are set by the dealer or lender, not by City Cars Houston.",
-      msgHello: function (n, c) { return "Hi City Cars Houston, I'm " + n + " from " + c + ". I built my plan on your website:"; },
+      noteDecide: "Approval, price, down payment and terms are set by the dealer or lender, not by City Cars Houston TX.",
+      msgHello: function (n, c) { return "Hi City Cars Houston TX, I'm " + n + " from " + c + ". I built my plan on your website:"; },
       msgEnd: "Which dealers can you connect me with?"
     }
   }[LANG];
@@ -254,6 +254,21 @@
     else mailSlot.remove();
   }
 
+  // ---------- Menú móvil ----------
+  var navToggle = $("nav-toggle"), navMenu = $("nav");
+  if (navToggle && navMenu) {
+    navToggle.addEventListener("click", function () {
+      var open = navMenu.classList.toggle("open");
+      navToggle.setAttribute("aria-expanded", String(open));
+    });
+    navMenu.querySelectorAll("a").forEach(function (a) {
+      a.addEventListener("click", function () {
+        navMenu.classList.remove("open");
+        navToggle.setAttribute("aria-expanded", "false");
+      });
+    });
+  }
+
   var grid = $("grid");
   if (!grid) return; // páginas de texto (privacidad, 404): no hay más que hacer
   document.body.classList.add("has-bar");
@@ -305,13 +320,15 @@
     var slides = el("div", { "class": "slides", tabindex: "0", "aria-label": fullName(v) });
     v.photos.forEach(function (p, i) {
       var base = "/img/" + p;
-      slides.appendChild(el("img", {
+      var img = el("img", {
         src: base + "-640.webp",
         srcset: base + "-640.webp 640w, " + base + "-1200.webp 1200w",
         sizes: "(max-width: 700px) 100vw, 400px",
         width: "640", height: "427", loading: "lazy", decoding: "async",
         alt: fullName(v) + " " + v.color[LANG].toLowerCase() + (i === 0 ? T.altFront : T.altBack)
-      }));
+      });
+      img.addEventListener("click", function () { openDetail(v, img); });
+      slides.appendChild(img);
     });
     g.appendChild(slides);
     g.appendChild(el("span", { "class": "tag" }, T.types[v.type] + " • " + T.used));
@@ -356,7 +373,6 @@
 
       var yl = el("p", { "class": "yearline" });
       yl.appendChild(el("span", null, v.year + " • " + v.miles + " " + T.miles));
-      if (v.draft) yl.appendChild(el("span", { "class": "draft", title: T.draftTitle }, T.draft));
       body.appendChild(yl);
 
       var specs = el("ul", { "class": "specs" });
@@ -386,7 +402,9 @@
       ask.href = waLink(T.waCar(label(v)));
       var plan = el("button", { type: "button", "class": "btn btn-ghost", "aria-label": T.plan + ": " + fullName(v) }, T.plan);
       plan.addEventListener("click", function () { selectVehicle(v.slug); goPlan(); });
-      actions.appendChild(ask); actions.appendChild(plan);
+      var more = el("button", { type: "button", "class": "btn btn-ghost", "aria-label": T.details + ": " + fullName(v) }, T.details);
+      more.addEventListener("click", function () { openDetail(v, more); });
+      actions.appendChild(ask); actions.appendChild(plan); actions.appendChild(more);
       body.appendChild(actions);
       card.appendChild(body);
       grid.appendChild(card);
@@ -410,7 +428,82 @@
   setFilter("todos");
   renderFavbar();
 
-  // ---------- Arma tu plan ----------
+  // ---------- Ficha de especificaciones ----------
+  var modalOverlay = $("modal-overlay"), modalEl = $("modal"), modalContent = $("modal-content"), modalClose = $("modal-close");
+  var lastOpener = null;
+
+  function openDetail(v, opener) {
+    lastOpener = opener || null;
+    modalContent.textContent = "";
+
+    var title = el("h2", { "class": "modal-title", id: "modal-title" }, fullName(v));
+    modalContent.appendChild(title);
+    modalContent.appendChild(el("p", { "class": "modal-sub" }, v.color[LANG] + " • " + v.year + " • ID " + v.id));
+
+    var gal = el("div", { "class": "modal-gallery" });
+    v.photos.forEach(function (p, i) {
+      var base = "/img/" + p;
+      gal.appendChild(el("img", {
+        src: base + "-1200.webp",
+        srcset: base + "-640.webp 640w, " + base + "-1200.webp 1200w",
+        sizes: "(max-width: 700px) 100vw, 700px",
+        loading: "lazy", decoding: "async",
+        alt: fullName(v) + " " + v.color[LANG].toLowerCase() + (i === 0 ? T.altFront : T.altBack)
+      }));
+    });
+    modalContent.appendChild(gal);
+
+    modalContent.appendChild(el("h3", null, T.specsTitle));
+    var specs = el("ul", { "class": "modal-specs" });
+    [
+      [T.year, v.year], [T.milesLabel, v.miles + " " + T.miles],
+      [T.type, T.types[v.type]], [T.colorLabel, v.color[LANG]],
+      [T.drive, v.drive || T.driveTbd]
+    ].forEach(function (row) {
+      var li = el("li");
+      li.appendChild(el("b", null, row[0]));
+      li.appendChild(document.createTextNode(row[1]));
+      specs.appendChild(li);
+    });
+    var seatsLi = el("li");
+    seatsLi.appendChild(el("b", null, T.seatsLabel));
+    seatsLi.appendChild(document.createTextNode(v.seats[LANG]));
+    specs.appendChild(seatsLi);
+    modalContent.appendChild(specs);
+
+    var seen = el("ul", { "class": "modal-seen" });
+    v.seen[LANG].forEach(function (f) { seen.appendChild(el("li", null, f)); });
+    modalContent.appendChild(seen);
+
+    var ideal = el("p", { "class": "modal-ideal" });
+    ideal.appendChild(el("b", null, T.ideal + ": "));
+    ideal.appendChild(document.createTextNode(v.ideal[LANG]));
+    modalContent.appendChild(ideal);
+
+    var actions = el("div", { "class": "modal-actions" });
+    var ask = el("a", { "class": "btn btn-wa", target: "_blank", rel: "noopener noreferrer", "aria-label": T.ask + ": " + fullName(v) }, T.ask);
+    ask.href = waLink(T.waCar(label(v)));
+    var plan = el("button", { type: "button", "class": "btn btn-ghost" }, T.plan);
+    plan.addEventListener("click", function () { closeDetail(); selectVehicle(v.slug); goPlan(); });
+    actions.appendChild(ask); actions.appendChild(plan);
+    modalContent.appendChild(actions);
+
+    modalOverlay.hidden = false;
+    document.body.classList.add("modal-open");
+    modalEl.focus();
+  }
+
+  function closeDetail() {
+    modalOverlay.hidden = true;
+    document.body.classList.remove("modal-open");
+    if (lastOpener) { lastOpener.focus(); lastOpener = null; }
+  }
+
+  modalClose.addEventListener("click", closeDetail);
+  modalOverlay.addEventListener("click", function (e) { if (e.target === modalOverlay) closeDetail(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !modalOverlay.hidden) closeDetail(); });
+
+  // ---------- Crea tu plan ----------
   var form = $("planform"), steps = form.querySelectorAll(".step"), err = $("err");
   var current = 0;
   var selV = $("f-vehiculo");

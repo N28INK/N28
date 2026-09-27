@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>City Cars Houston · Te conectamos con dealers de Houston</title>
+<title>City Cars Houston TX · Te conectamos con dealers de Houston</title>
 <meta name="description" content="Trocas y SUV en Houston. Una conversación por WhatsApp y te conectamos con dealers con licencia en Texas que trabajan con tu situación: ITIN, primer crédito o crédito dañado.">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="theme-color" content="#0F5A3C">
@@ -11,7 +11,7 @@
 <link rel="alternate" hreflang="es" href="https://tudominio.com/es/">
 <link rel="alternate" hreflang="en" href="https://tudominio.com/en/">
 <link rel="alternate" hreflang="x-default" href="https://tudominio.com/es/">
-<meta property="og:title" content="City Cars Houston · Una conversación, muchos dealers">
+<meta property="og:title" content="City Cars Houston TX · Una conversación, muchos dealers">
 <meta property="og:description" content="Te conectamos con dealers con licencia en Houston. Tú decides.">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="es_US">
@@ -20,7 +20,7 @@
 <link rel="stylesheet" href="/styles.css">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"Organization","name":"City Cars Houston","description":"Servicio bilingüe que conecta compradores de Houston con dealers con licencia en Texas. No es un dealer ni un prestamista.","url":"https://tudominio.com/es/","areaServed":"Houston, TX","knowsLanguage":["es","en"],"contactPoint":{"@type":"ContactPoint","telephone":"+1-281-602-7044","contactType":"customer service","availableLanguage":["Spanish","English"],"hoursAvailable":{"@type":"OpeningHoursSpecification","dayOfWeek":["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],"opens":"09:00","closes":"20:00"}}}
+{"@context":"https://schema.org","@type":"Organization","name":"City Cars Houston TX","description":"Servicio bilingüe que conecta compradores de Houston con dealers con licencia en Texas. No es un dealer ni un prestamista.","url":"https://tudominio.com/es/","areaServed":"Houston, TX","knowsLanguage":["es","en"],"contactPoint":{"@type":"ContactPoint","telephone":"+1-281-602-7044","contactType":"customer service","availableLanguage":["Spanish","English"],"hoursAvailable":{"@type":"OpeningHoursSpecification","dayOfWeek":["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],"opens":"09:00","closes":"20:00"}}}
 </script>
 <script src="/app.js" defer></script>
 </head>
@@ -29,14 +29,17 @@
 
 <header class="top">
   <div class="wrap">
-    <a class="brand" href="/es/" aria-label="City Cars Houston, inicio">
-      <span class="brand-mark" aria-hidden="true">CC</span>
-      <span class="brand-name">City Cars Houston<small>Te conectamos con dealers de Houston</small></span>
+    <a class="brand" href="/es/" aria-label="City Cars Houston TX, inicio">
+      <img class="brand-mark" src="/img/logo-puente.svg" width="42" height="42" alt="Puente que conecta compradores con dealers en Houston, TX">
+      <span class="brand-name">City Cars Houston TX<small>Te conectamos con dealers de Houston</small></span>
     </a>
-    <nav class="nav" aria-label="Principal">
+    <button type="button" class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="nav" aria-label="Abrir menú">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+    </button>
+    <nav class="nav" id="nav" aria-label="Principal">
       <a href="#inventario">Inventario</a>
       <a href="#como-funciona">Cómo funciona</a>
-      <a href="#plan">Arma tu plan</a>
+      <a href="#plan">Crea tu plan</a>
       <a href="#preguntas">Preguntas</a>
     </nav>
     <a class="lang" href="/en/" hreflang="en" lang="en" aria-label="English version">EN</a>
@@ -62,7 +65,7 @@
             <h1 id="hero-title">Una conversación, muchos dealers.</h1>
             <p>Cuéntanos tu situación una sola vez y te conectamos con dealers con licencia en Houston que trabajan con ella. Te conectamos. Tú decides.</p>
             <div class="sign-panels">
-              <div><b>Trocas y SUV</b><span>con fotos reales</span></div>
+              <div><b>Trocas y SUV</b><span>con fotos de los dealers</span></div>
               <div><b>ITIN y matrícula</b><span>muchos de nuestros dealers trabajan con ellos</span></div>
               <div><b>Sin presión</b><span>tú decides con quién seguir</span></div>
             </div>
@@ -75,7 +78,7 @@
         <h2>¿Por dónde quieres empezar?</h2>
         <div class="start-list">
           <a class="btn btn-primary" href="#plan">
-            <span>Arma tu plan en 1 minuto<small>No revisa tu crédito. Al final ves el mensaje antes de enviarlo.</small></span>
+            <span>Crea tu plan en 1 minuto<small>No revisa tu crédito. Al final ves el mensaje antes de enviarlo.</small></span>
           </a>
           <a class="btn btn-sign" href="#inventario">
             <span>Ver trocas y SUV<small>Tahoe, Suburban, Yukon, Silverado, Sierra y más</small></span>
@@ -84,7 +87,7 @@
             <span>Escríbenos por WhatsApp<small>Todos los días, de 9 am a 8 pm</small></span>
           </a>
         </div>
-        <p class="start-note">City Cars Houston no es un dealer ni un prestamista: te conectamos con dealers con licencia en Texas.</p>
+        <p class="start-note">City Cars Houston TX no es un dealer ni un prestamista: te conectamos con dealers con licencia en Texas.</p>
       </div>
     </div>
   </section>
@@ -115,8 +118,7 @@
         <a class="btn" id="favlink" href="https://wa.me/12816027044" target="_blank" rel="noopener noreferrer">Preguntar por mis guardados</a>
       </div>
       <div class="inv-note">
-        <p>Fotos reales de cada vehículo, compartidas con permiso de los dealers. Inventario sujeto a disponibilidad: confirma con el dealer antes de visitarlo.</p>
-        <p>Los datos marcados como <b>BORRADOR</b> (año, millas y condición) son de referencia y se confirman con el dealer por WhatsApp. Pide el historial y el estado del título antes de decidir.</p>
+        <p>Imágenes de cada vehículo compartidas con permiso de los dealers. Inventario sujeto a disponibilidad; confirma con el dealer antes de visitarlo.</p>
       </div>
     </div>
   </section>
@@ -125,13 +127,13 @@
     <div class="wrap dark-grid">
       <div>
         <h2 id="no-title">Lo que NO hacemos</h2>
-        <p class="lead">Claro desde el primer mensaje. Si alguien que dice ser de City Cars Houston hace algo de esta lista, no es nosotros.</p>
+        <p class="lead">Claro desde el primer mensaje. Si alguien que dice ser de City Cars Houston TX hace algo de esta lista, no es nosotros.</p>
         <p class="official">Nuestro único WhatsApp oficial es el (281) 602-7044.</p>
       </div>
       <ul class="nolist">
         <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg><div><b>No somos dealer ni prestamista</b><span>No vendemos los vehículos ni damos el financiamiento. Te conectamos con dealers con licencia en Texas.</span></div></li>
         <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg><div><b>No pedimos tu número de Social ni depósitos por WhatsApp</b><span>Nunca. Si alguien te los pide a nuestro nombre, es una estafa.</span></div></li>
-        <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg><div><b>No revisamos tu crédito</b><span>Armar tu plan no consulta tu historial. Si decides avanzar, el dealer te pide permiso antes de revisarlo.</span></div></li>
+        <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg><div><b>No revisamos tu crédito</b><span>Crear tu plan no consulta tu historial. Si decides avanzar, el dealer te pide permiso antes de revisarlo.</span></div></li>
         <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg><div><b>No prometemos aprobaciones</b><span>La aprobación, el precio, la inicial y los términos los decide el dealer o el financiador, según tu situación.</span></div></li>
       </ul>
     </div>
@@ -140,7 +142,7 @@
   <section id="plan" aria-labelledby="plan-title">
     <div class="wrap plan-grid">
       <div>
-        <h2 id="plan-title">Arma tu plan</h2>
+        <h2 id="plan-title">Crea tu plan</h2>
         <p class="lead">Cuatro preguntas rápidas. Al final ves el mensaje exacto y lo mandas por WhatsApp con un toque.</p>
         <ul class="checks">
           <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>No consulta ni afecta tu crédito.</li>
@@ -196,8 +198,8 @@
               <input type="text" id="f-ciudad" name="ciudad" autocomplete="address-level2" maxlength="60" list="ciudades" required>
               <datalist id="ciudades"><option value="Houston"><option value="Pasadena"><option value="Katy"><option value="Channelview"><option value="Sugar Land"><option value="Pearland"><option value="Baytown"><option value="Spring"><option value="Humble"><option value="Cypress"></datalist>
             </div>
-            <label class="consent"><input type="checkbox" id="f-consent" required><span>Acepto la <a href="/es/privacidad/" target="_blank" rel="noopener">política de privacidad</a> y que City Cars Houston me conteste por WhatsApp o me llame. <span class="flag">[REVISAR CON ABOGADO]</span></span></label>
-            <label class="consent"><input type="checkbox" id="f-share"><span>Autorizo compartir esta información con dealers asociados. <small>(Opcional. Si no lo marcas, te pedimos permiso antes de pasar tus datos a un dealer.)</small> <span class="flag">[REVISAR CON ABOGADO]</span></span></label>
+            <label class="consent"><input type="checkbox" id="f-consent" required><span>Acepto la <a href="/es/privacidad/" target="_blank" rel="noopener">política de privacidad</a> y que City Cars Houston TX me conteste por WhatsApp o me llame.</span></label>
+            <label class="consent"><input type="checkbox" id="f-share"><span>Autorizo compartir esta información con dealers asociados. <small>(Opcional. Si no lo marcas, te pedimos permiso antes de pasar tus datos a un dealer.)</small></span></label>
           </fieldset>
 
           <div class="step-nav">
@@ -242,10 +244,10 @@
     <div class="wrap">
       <h2 id="faq-title">Lo que más nos preguntan</h2>
       <div class="faq">
-        <details><summary>¿City Cars Houston es un dealer?</summary><p>No. Te conectamos con dealers con licencia en Texas. Ellos venden los vehículos y, con sus financiadores, deciden la aprobación y los términos.</p></details>
+        <details><summary>¿City Cars Houston TX es un dealer?</summary><p>No. Te conectamos con dealers con licencia en Texas. Ellos venden los vehículos y, con sus financiadores, deciden la aprobación y los términos.</p></details>
         <details><summary>¿Puedo comprar sin número de Social?</summary><p>Muchos de nuestros dealers trabajan con ITIN, matrícula consular o pasaporte. La aprobación la decide el dealer o el financiador según tu situación.</p></details>
         <details><summary>¿Qué documentos necesito?</summary><p>Normalmente una identificación, un comprobante de ingresos y uno de domicilio. El dealer te dice cuáles exactamente. En esta página nunca te pedimos números de documentos.</p></details>
-        <details><summary>¿Revisan mi crédito?</summary><p>Nosotros no. Armar tu plan no consulta tu historial. Si decides avanzar con un dealer, él puede revisarlo con tu permiso.</p></details>
+        <details><summary>¿Revisan mi crédito?</summary><p>Nosotros no. Crear tu plan no consulta tu historial. Si decides avanzar con un dealer, él puede revisarlo con tu permiso.</p></details>
         <details><summary>¿Cuánto necesito de inicial?</summary><p>Depende del vehículo, de tu situación y del financiador. Por eso no publicamos cifras: el dealer te las da por escrito. Te orientamos por WhatsApp.</p></details>
         <details><summary>Tuve un repo o una bancarrota, ¿puedo comprar?</summary><p>Algunos dealers trabajan con esas situaciones. Cuéntanos qué pasó y te decimos con honestidad qué opciones hay.</p></details>
         <details><summary>Me pagan en efectivo o trabajo por mi cuenta.</summary><p>Hay formas de comprobar ingresos, como estados de cuenta o cartas de trabajo. Te orientamos según tu caso.</p></details>
@@ -262,9 +264,9 @@
   <div class="wrap">
     <div class="foot-grid">
       <div>
-        <a class="brand" href="/es/" aria-label="City Cars Houston, inicio">
-          <span class="brand-mark" aria-hidden="true">CC</span>
-          <span class="brand-name">City Cars Houston<small>Te conectamos con dealers de Houston</small></span>
+        <a class="brand" href="/es/" aria-label="City Cars Houston TX, inicio">
+          <img class="brand-mark" src="/img/logo-puente.svg" width="42" height="42" alt="Puente que conecta compradores con dealers en Houston, TX">
+          <span class="brand-name">City Cars Houston TX<small>Te conectamos con dealers de Houston</small></span>
         </a>
         <p class="foot-about">Una conversación, muchos dealers. Hablamos español e inglés.</p>
         <a class="btn" data-wa href="https://wa.me/12816027044" target="_blank" rel="noopener noreferrer">Escríbenos por WhatsApp</a>
@@ -284,17 +286,26 @@
       </div>
     </div>
     <div class="legal">
-      <p>City Cars Houston no es un concesionario ni un prestamista. Los vehículos los ofrecen y venden dealers con licencia en Texas. Aprobación, precio, inicial, APR y términos los decide el dealer o el financiador. <span class="flag">[REVISAR CON ABOGADO]</span></p>
+      <p>City Cars Houston TX no es un concesionario ni un prestamista. Los vehículos los ofrecen y venden dealers con licencia en Texas. Aprobación, precio, inicial, APR y términos los decide el dealer o el financiador.</p>
       <p>Nunca pedimos número de Social ni depósitos por WhatsApp. Nuestro único WhatsApp oficial es (281) 602-7044.</p>
-      <p>Chevrolet, GMC, Jeep y Kia son marcas de sus respectivos dueños. City Cars Houston no está afiliado a ellas.</p>
-      <p>© <span id="year">2026</span> City Cars Houston.</p>
+      <p>Chevrolet, GMC, Jeep y Kia son marcas de sus respectivos dueños. City Cars Houston TX no está afiliado a ellas.</p>
+      <p>© <span id="year">2026</span> City Cars Houston TX.</p>
     </div>
   </div>
 </footer>
 
 <div class="mobilebar">
-  <a class="btn btn-primary" href="#plan">Arma tu plan</a>
+  <a class="btn btn-primary" href="#plan">Crea tu plan</a>
   <a class="btn btn-wa" data-wa href="https://wa.me/12816027044" target="_blank" rel="noopener noreferrer">WhatsApp</a>
+</div>
+
+<div class="modal-overlay" id="modal-overlay" hidden>
+  <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">
+    <button type="button" class="modal-close" id="modal-close" aria-label="Cerrar">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+    </button>
+    <div id="modal-content" class="modal-content"></div>
+  </div>
 </div>
 </body>
 </html>

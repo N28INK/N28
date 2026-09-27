@@ -1,4 +1,4 @@
-/* City Cars Houston · identidad "letrero de autopista de Texas" */
+/* City Cars Houston TX · identidad "letrero de autopista de Texas" */
 @font-face{font-family:"Overpass";font-style:normal;font-weight:400;font-display:swap;src:url("/fonts/overpass-400.woff2") format("woff2")}
 @font-face{font-family:"Overpass";font-style:normal;font-weight:600;font-display:swap;src:url("/fonts/overpass-600.woff2") format("woff2")}
 @font-face{font-family:"Overpass";font-style:normal;font-weight:800;font-display:swap;src:url("/fonts/overpass-800.woff2") format("woff2")}
@@ -59,16 +59,25 @@ section{padding:clamp(3.5rem,7vw,6rem) 0}
 .top{position:sticky;top:0;z-index:40;background:var(--sign);color:#fff}
 .top .wrap{display:flex;align-items:center;gap:1rem;min-height:68px}
 .brand{display:flex;align-items:center;gap:.65rem;text-decoration:none;margin-right:auto;min-width:0}
-.brand-mark{display:grid;place-items:center;width:42px;height:42px;flex:none;border:2.5px solid #fff;border-radius:9px;font-weight:900;font-size:1.05rem;letter-spacing:-.04em}
+.brand-mark{display:grid;place-items:center;width:42px;height:42px;flex:none;border:2.5px solid #fff;border-radius:9px;font-weight:900;font-size:1.05rem;letter-spacing:-.04em;overflow:hidden}
+.brand-mark img{width:100%;height:100%;display:block}
 .brand-name{font-weight:800;font-size:1.15rem;line-height:1}
 .brand-name small{display:block;font-weight:600;font-size:.78rem;opacity:.85;margin-top:.25rem}
 .nav{display:flex;gap:1.3rem}
 .nav a{text-decoration:none;font-weight:600;font-size:.98rem;opacity:.92}
 .nav a:hover{opacity:1;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:6px;text-decoration-thickness:2px}
+.nav-toggle{display:none;flex:none;width:46px;height:46px;align-items:center;justify-content:center;border:2px solid rgba(255,255,255,.7);border-radius:var(--radius-s);background:transparent;color:#fff;cursor:pointer}
+.nav-toggle svg{width:22px;height:22px}
 .lang{display:inline-flex;align-items:center;justify-content:center;min-height:42px;min-width:44px;padding:0 .6rem;border:2px solid rgba(255,255,255,.7);border-radius:var(--radius-s);font-weight:800;font-size:.9rem;text-decoration:none}
 .lang:hover{border-color:#fff}
 .top .btn-wa{min-height:42px;padding:.5rem .95rem;background:#fff;color:var(--sign)}
-@media (max-width:960px){.nav{display:none}}
+@media (max-width:960px){
+  .top .wrap{position:relative;flex-wrap:wrap}
+  .nav-toggle{display:inline-flex}
+  .nav{display:none;position:absolute;top:100%;left:0;right:0;flex-direction:column;gap:0;background:var(--sign-deep);padding:.5rem 0;box-shadow:0 16px 28px -16px rgba(0,0,0,.5);z-index:39}
+  .nav.open{display:flex}
+  .nav a{padding:.95rem 1.25rem;min-height:48px;display:flex;align-items:center;width:100%}
+}
 @media (max-width:700px){.top .btn-wa span{display:none}.brand-name small{display:none}}
 @media (max-width:380px){.brand-name{font-size:1rem}}
 
@@ -121,7 +130,7 @@ section{padding:clamp(3.5rem,7vw,6rem) 0}
 .gallery{position:relative;background:var(--soft)}
 .slides{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;aspect-ratio:3/2}
 .slides::-webkit-scrollbar{display:none}
-.slides img{flex:0 0 100%;width:100%;height:100%;object-fit:cover;scroll-snap-align:start;display:block}
+.slides img{flex:0 0 100%;width:100%;height:100%;object-fit:cover;scroll-snap-align:start;display:block;cursor:pointer}
 .gallery::after{content:"";position:absolute;left:0;right:0;bottom:0;height:8px;background:var(--asphalt);pointer-events:none}
 .tag{position:absolute;top:.75rem;left:.75rem;background:var(--surface);color:var(--text);font-weight:800;font-size:.8rem;padding:.3rem .6rem;border-radius:var(--radius-s)}
 .fav{position:absolute;top:.55rem;right:.55rem;width:44px;height:44px;border-radius:50%;border:0;background:var(--surface);color:var(--text);display:grid;place-items:center;cursor:pointer}
@@ -137,7 +146,6 @@ section{padding:clamp(3.5rem,7vw,6rem) 0}
 .car-body h3{font-size:1.3rem}
 .car-sub{color:var(--muted);font-size:.92rem;margin-top:.2rem}
 .yearline{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem .6rem;font-weight:700}
-.draft{background:var(--line);color:#1D2427;font-size:.72rem;font-weight:900;letter-spacing:.06em;padding:.15rem .45rem;border-radius:4px}
 .specs{display:flex;flex-wrap:wrap;gap:.35rem 1rem;margin:0;padding:0;list-style:none;font-size:.93rem;color:var(--muted)}
 .specs b{color:var(--text);font-weight:700}
 .seen{border-top:2px dashed var(--rule);padding-top:.7rem}
@@ -167,7 +175,7 @@ section{padding:clamp(3.5rem,7vw,6rem) 0}
 .nolist span{color:#BFC8C5}
 .official{margin-top:1.5rem;border:3px solid var(--line);border-radius:var(--radius-m);padding:1rem 1.2rem;font-weight:700}
 
-/* Arma tu plan */
+/* Crea tu plan */
 .plan-grid{display:grid;grid-template-columns:minmax(0,4fr) minmax(0,8fr);gap:clamp(1.5rem,4vw,3.5rem);align-items:start}
 @media (max-width:900px){.plan-grid{grid-template-columns:1fr}}
 .checks{margin:1.25rem 0 0;padding:0;list-style:none;display:grid;gap:.6rem;color:var(--muted)}
@@ -279,4 +287,25 @@ footer .btn{margin-top:1rem;background:#fff;color:var(--sign)}
   .ticket dl{display:block}
   .ticket dt{font-size:.88rem;margin-top:.7rem}
   .ticket dt:first-child{margin-top:0}
+}
+
+/* Ficha de especificaciones (modal) */
+body.modal-open{overflow:hidden}
+.modal-overlay{position:fixed;inset:0;background:rgba(14,18,19,.72);display:flex;align-items:center;justify-content:center;padding:1rem;z-index:100}
+.modal{position:relative;background:var(--surface);color:var(--text);border-radius:var(--radius-m);max-width:760px;width:100%;max-height:min(88vh,900px);overflow-y:auto;padding:1.5rem}
+.modal-close{position:absolute;top:.75rem;right:.75rem;width:44px;height:44px;border-radius:50%;border:0;background:var(--soft);color:var(--text);display:grid;place-items:center;cursor:pointer;z-index:2}
+.modal-close svg{width:20px;height:20px}
+.modal-title{font-size:clamp(1.4rem,3.5vw,1.9rem);margin:0 2.75rem .25rem 0}
+.modal-sub{color:var(--muted);margin:0 0 1.1rem}
+.modal-gallery{display:grid;gap:.5rem;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));margin-bottom:1.25rem}
+.modal-gallery img{width:100%;height:100%;aspect-ratio:3/2;object-fit:cover;border-radius:var(--radius-s);display:block}
+.modal-specs{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.75rem 1.25rem;list-style:none;margin:0 0 1.25rem;padding:1rem;background:var(--bg);border-radius:var(--radius-s)}
+.modal-specs li{font-size:.95rem}
+.modal-specs b{display:block;font-size:.78rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase;color:var(--muted);margin-bottom:.15rem}
+.modal-seen{margin:0 0 1.25rem;padding-left:1.2rem}
+.modal-ideal{margin:0 0 1.25rem}
+.modal-actions{display:flex;flex-wrap:wrap;gap:.75rem}
+@media (max-width:520px){
+  .modal-overlay{padding:0}
+  .modal{max-width:none;width:100%;height:100%;max-height:none;border-radius:0}
 }
