@@ -88,6 +88,16 @@ Si necesitas crear el proyecto desde cero:
    automáticamente.
 5. Repite el paso 0.1 (reemplazar `n28-eight.vercel.app` por el dominio final en los HTML).
 
+## 3.1 Vercel Web Analytics
+
+Las 6 páginas HTML ya cargan `<script defer src="/_vercel/insights/script.js"></script>`
+(el método sin build/sin npm para sitios estáticos; el paquete `@vercel/analytics` de npm es para
+proyectos con bundler, no aplica aquí). Falta un paso manual en el dashboard:
+
+1. En el proyecto de Vercel → pestaña **Analytics** → **Enable**.
+2. Las estadísticas (vistas, países, dispositivos) aparecen ahí mismo a los pocos minutos de tráfico.
+   El plan Hobby incluye un límite mensual de eventos; si se supera hace falta plan Pro.
+
 ## 4. Ajustes de seguridad
 
 - Los headers de seguridad (CSP, HSTS, X-Frame-Options, Permissions-Policy, COOP,
