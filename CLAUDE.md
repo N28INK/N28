@@ -7,24 +7,39 @@ amplio (trocas, SUV, sedanes) sin cotizaciones ni montos: solo la descripción d
 Toda la conversión va a WhatsApp (+1 281 602 7044). No hay backend ni base de datos.
 
 ## Estado actual
-- Sitio estático en `public/` (se publica solo esa carpeta en Cloudflare Pages; ver `DEPLOY.md`).
+- Sitio estático en `public/` (se publica solo esa carpeta). Ya publicado en Vercel bajo
+  `https://n28-eight.vercel.app/` (Root Directory del proyecto Vercel = `public`); dominio propio
+  pendiente de conectar. `public/vercel.json` reemplaza las cabeceras/redirects de `_headers` y
+  `_redirects` (esos archivos son de Cloudflare Pages y Vercel los ignora; se dejaron por si en el
+  futuro se publica ahí también). Ver `DEPLOY.md`.
   `/es/` y `/en/` con hreflang, `/es/privacidad/`, `/en/privacy/`, `404.html`, `_headers`, `_redirects`.
-- `public/app.js`: toda la lógica y el INVENTARIO (objeto `VEHICLES`, ES/EN, `draft: true` = datos borrador).
-  `public/styles.css`, fuente Overpass autoalojada en `public/fonts/`.
+- JS dividido en tres scripts globales cargados en orden fijo con `defer` (`vehicles.js` → `i18n.js`
+  → `app.js`; sin módulos ni bundler, para que siga siendo "sin build"):
+  - `public/js/vehicles.js`: único archivo a editar para cambiar el INVENTARIO (variable `VEHICLES`).
+  - `public/js/i18n.js`: textos ES/EN de la interfaz (variable `I18N`, indexada por `LANG` en app.js).
+  - `public/js/app.js`: toda la lógica (menú, casos, inventario, ficha de especificaciones, plan).
+  `public/css/styles.css`, fuente Overpass autoalojada en `public/fonts/`.
 - Identidad "letrero de autopista de Texas" (aprobada por el dueño): verde #0F5A3C, amarillo #F5B700, asfalto #262C2F.
-- `public/img/`: 10 vehículos × 2 fotos en WebP (640/1200 px). Pares verificados visualmente;
+- `public/img/`: 16 vehículos × 2 fotos en WebP (640/1200 px). Pares verificados visualmente;
   Yukon renombrada a "azul" y Wrangler a "verde" (arena). El dueño confirmó tener permiso de los dealers.
+  Los 6 vehículos CCH-11 a CCH-16 (Sierra Denali, CR-V, Ram Laramie, Silverado RST, Ram Big Horn,
+  F-150 FX4) vienen de fotos del dueño con nombres de carpeta tipo "2018 GMC ... 3000 down payment":
+  el monto de inicial y el "FINANCIADO" visible en algunas fotos del lote NO se usó en ningún texto
+  del sitio, por la regla de "sin montos" (ver tarea 3 abajo).
 - Horario: lunes a domingo, 9 am – 8 pm. Respuesta el mismo día por WhatsApp (confirmado por el dueño).
 - Las tareas 1–8 de abajo están hechas. Los textos legales fueron revisados y aprobados por el dueño;
   ya no llevan la marca `[REVISAR CON ABOGADO]`. Sigue pendiente confirmar año/millas/condición de
   cada vehículo con el dealer y llenar los `[COMPLETAR]` de la política de privacidad.
 - Nombre de marca definitivo en todo el sitio: "City Cars Houston TX".
-- El inventario ya no usa el mecanismo `draft` (se quitó por decisión del dueño): los 10 vehículos se
+- El inventario ya no usa el mecanismo `draft` (se quitó por decisión del dueño): los 16 vehículos se
   publican directamente, sin insignia de borrador.
 - Ficha de especificaciones: modal accesible desde "Ver más" o al hacer clic en la foto de un vehículo
-  (`openDetail()` en `app.js`), con galería ampliada, specs y botones de acción.
+  (`openDetail()` en `public/js/app.js`), con galería ampliada, specs y botones de acción.
 - Logo "puente" (`public/img/logo-puente.svg`) en el header de todas las páginas; menú hamburguesa
   (`#nav-toggle`) para el nav en pantallas ≤960px.
+- El JS se reestructuró en `public/js/` (`vehicles.js`, `i18n.js`, `app.js`) y el CSS pasó a
+  `public/css/styles.css`; sigue siendo HTML/CSS/JS plano sin build ni dependencias de runtime
+  (probado con jsdom sirviendo `public/` por HTTP: las 4 páginas cargan sin errores de consola).
 
 ## Tareas pendientes (en este orden)
 1. **Inventario real**: reemplaza los 6 vehículos de ejemplo por los 10 de `img/`

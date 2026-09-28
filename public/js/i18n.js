@@ -1,0 +1,85 @@
+// City Cars Houston TX — textos ES/EN de la interfaz.
+// Variable global I18N = { es: {...}, en: {...} }; se carga antes de app.js.
+"use strict";
+
+  // ---------- Textos dinámicos ----------
+  var I18N = {
+    es: {
+      types: { suv: "SUV", truck: "Troca" }, used: "Usado",
+      miles: "millas",
+      drive: "Tracción", driveTbd: "por confirmar", seen: "Se ve en las fotos", ideal: "Ideal para",
+      dealerGeneric: "La ofrece un dealer con licencia en Houston.", dealerNamed: "La ofrece: ",
+      ask: "Preguntar", plan: "Crear plan", save: "Guardar ", photoOf: " de ", prev: "Foto anterior", next: "Foto siguiente",
+      altFront: " — vista delantera", altBack: " — vista trasera",
+      details: "Ver más", close: "Cerrar", specsTitle: "Especificaciones", year: "Año", milesLabel: "Millas", colorLabel: "Color", type: "Tipo", seatsLabel: "Pasajeros",
+      filters: [["todos", "Todos"], ["truck", "Trocas"], ["suv", "SUV"], ["rows3", "3 filas"], ["4x4", "4x4 confirmada"]],
+      empty: "No hay vehículos con ese filtro por ahora.",
+      favOne: "Guardaste 1: ", favMany: function (n) { return "Guardaste " + n + " vehículos"; },
+      waGeneral: "Hola City Cars Houston TX, vi su página y quiero que me conecten con un dealer.",
+      waCar: function (v) { return "Hola City Cars Houston TX, me interesa la " + v + ". ¿Está disponible? ¿Me pueden mandar más fotos y video?"; },
+      waFavs: function (list) { return "Hola City Cars Houston TX, me interesan estos vehículos: " + list + ". ¿Siguen disponibles?"; },
+      undecided: "Todavía no decido", choose: "Elige una opción",
+      cases: [
+        { id: "familia", label: "Somos familia grande", text: "Tahoe, Suburban, Yukon y Telluride de 3 filas, con espacio para toda la familia y las sillas de los niños.", action: "Ver 3 filas", filter: "rows3" },
+        { id: "primer", label: "Es mi primer crédito", text: "Muchos de nuestros dealers trabajan con compradores sin crédito o con su primer crédito. Te decimos con quién conviene hablar.", action: "Crea tu plan", plan: true },
+        { id: "trabajo", label: "La necesito para trabajar", text: "Trocas de cabina doble con enganche de remolque, listas para la obra.", action: "Ver trocas", filter: "truck" },
+        { id: "itin", label: "Tengo ITIN o matrícula", text: "Muchos de nuestros dealers trabajan con ITIN, matrícula consular o pasaporte. La aprobación la decide el dealer o el financiador.", action: "Crea tu plan", plan: true },
+        { id: "danado", label: "Mi crédito está dañado", text: "Crédito dañado, repo o bancarrota: algunos dealers trabajan con esas situaciones. Cuéntanos y te decimos con honestidad qué esperar.", action: "Crea tu plan", plan: true },
+        { id: "efectivo", label: "Me pagan en efectivo", text: "Si te pagan en efectivo o trabajas por tu cuenta, hay formas de comprobar ingresos. Te orientamos por WhatsApp.", action: "Crea tu plan", plan: true }
+      ],
+      down: ["Menos de $1,000", "$1,000 a $2,500", "$2,500 a $5,000", "Más de $5,000", "Prefiero decirlo en el chat"],
+      income: ["Menos de $2,000", "$2,000 a $3,000", "$3,000 a $4,500", "Más de $4,500", "Prefiero decirlo en el chat"],
+      tenure: ["Menos de 6 meses", "6 meses a 1 año", "1 a 2 años", "Más de 2 años", "Trabajo por mi cuenta"],
+      docs: [["id", "Texas ID o licencia de manejo"], ["alt", "Matrícula consular o pasaporte"], ["itin", "ITIN o Social Security"], ["ingresos", "Comprobante de ingresos"], ["domicilio", "Comprobante de domicilio"]],
+      nextBtn: "Siguiente", lastBtn: "Ver mi mensaje",
+      errDown: "Elige cuánto tienes para la inicial.", errIncome: "Elige tu ingreso mensual aproximado.", errTenure: "Elige el tiempo en tu trabajo actual.",
+      errName: "Escribe tu nombre (solo letras, mínimo 2).", errCity: "Escribe tu ciudad (solo letras, mínimo 2).", errConsent: "Marca la casilla para aceptar la política de privacidad.",
+      rows: ["Vehículo", "Tu caso", "Tu inicial", "Ingreso", "En tu trabajo", "Documentos", "Compartir con dealers"],
+      msgRows: ["Vehículo", "Mi caso", "Tengo para la inicial", "Ingreso mensual", "En mi trabajo", "Documentos que tengo", "Autorizo compartir con dealers asociados"],
+      noCase: "Sin indicar", noDocs: "Prefiero no decir", yes: "Sí", no: "Todavía no",
+      noteNoId: "Si no tienes identificación a la mano, escríbenos igual: te decimos qué suelen aceptar los dealers en Texas.",
+      noteShare: "No marcaste la autorización para compartir con dealers. Te contestamos igual y te pedimos permiso antes de pasar tus datos a un dealer.",
+      noteDecide: "La aprobación, el precio, la inicial y los términos los decide el dealer o el financiador, no City Cars Houston TX.",
+      msgHello: function (n, c) { return "Hola City Cars Houston TX, soy " + n + " de " + c + ". Creé mi plan en la página:"; },
+      msgEnd: "¿Con qué dealers me pueden conectar?"
+    },
+    en: {
+      types: { suv: "SUV", truck: "Truck" }, used: "Used",
+      miles: "miles",
+      drive: "Drive", driveTbd: "to be confirmed", seen: "Visible in the photos", ideal: "Great for",
+      dealerGeneric: "Offered by a licensed Houston dealer.", dealerNamed: "Offered by: ",
+      ask: "Ask about it", plan: "Build my plan", save: "Save ", photoOf: " of ", prev: "Previous photo", next: "Next photo",
+      altFront: " — front view", altBack: " — rear view",
+      details: "See more", close: "Close", specsTitle: "Specifications", year: "Year", milesLabel: "Mileage", colorLabel: "Color", type: "Type", seatsLabel: "Seats",
+      filters: [["todos", "All"], ["truck", "Trucks"], ["suv", "SUVs"], ["rows3", "3 rows"], ["4x4", "Confirmed 4x4"]],
+      empty: "Nothing matches that filter right now.",
+      favOne: "You saved 1: ", favMany: function (n) { return "You saved " + n + " vehicles"; },
+      waGeneral: "Hi City Cars Houston TX, I saw your website and I'd like to be matched with a dealer.",
+      waCar: function (v) { return "Hi City Cars Houston TX, I'm interested in the " + v + ". Is it still available? Can you send more photos and a video?"; },
+      waFavs: function (list) { return "Hi City Cars Houston TX, I'm interested in these vehicles: " + list + ". Are they still available?"; },
+      undecided: "Not sure yet", choose: "Choose one",
+      cases: [
+        { id: "familia", label: "Big family", text: "Three-row Tahoe, Suburban, Yukon and Telluride, with room for the whole family and the car seats.", action: "See 3-row SUVs", filter: "rows3" },
+        { id: "primer", label: "First car or no credit", text: "Many of our dealers work with first-time buyers and people with no credit history. We'll tell you who's worth talking to.", action: "Build my plan", plan: true },
+        { id: "trabajo", label: "I need it for work", text: "Crew cab trucks with tow hitches, ready for the job site.", action: "See trucks", filter: "truck" },
+        { id: "itin", label: "I have an ITIN", text: "Many of our dealers work with ITIN, consular ID or passport. Approval is up to the dealer or lender.", action: "Build my plan", plan: true },
+        { id: "danado", label: "Bad credit, repo or bankruptcy", text: "Some dealers work with bad credit, past repos or bankruptcy. Tell us your story and we'll be straight with you about what to expect.", action: "Build my plan", plan: true },
+        { id: "efectivo", label: "Paid in cash / self-employed", text: "If you're paid in cash or work for yourself, there are ways to show income. We'll walk you through it on WhatsApp.", action: "Build my plan", plan: true }
+      ],
+      down: ["Under $1,000", "$1,000 to $2,500", "$2,500 to $5,000", "Over $5,000", "I'd rather say in the chat"],
+      income: ["Under $2,000", "$2,000 to $3,000", "$3,000 to $4,500", "Over $4,500", "I'd rather say in the chat"],
+      tenure: ["Under 6 months", "6 months to 1 year", "1 to 2 years", "Over 2 years", "Self-employed"],
+      docs: [["id", "Texas ID or driver's license"], ["alt", "Consular ID or passport"], ["itin", "ITIN or Social Security"], ["ingresos", "Proof of income"], ["domicilio", "Proof of address"]],
+      nextBtn: "Next", lastBtn: "See my message",
+      errDown: "Choose how much you have for a down payment.", errIncome: "Choose your approximate monthly income.", errTenure: "Choose how long you've been at your current job.",
+      errName: "Enter your name (letters only, at least 2).", errCity: "Enter your city (letters only, at least 2).", errConsent: "Check the box to accept the privacy policy.",
+      rows: ["Vehicle", "Your situation", "Down payment", "Income", "At your job", "Documents", "Share with dealers"],
+      msgRows: ["Vehicle", "My situation", "I have for a down payment", "Monthly income", "At my job", "Documents I have", "I authorize sharing with partner dealers"],
+      noCase: "Not specified", noDocs: "Prefer not to say", yes: "Yes", no: "Not yet",
+      noteNoId: "If you don't have an ID handy, message us anyway: we'll tell you what Texas dealers usually accept.",
+      noteShare: "You didn't check the box to share with dealers. We'll still reply, and we'll ask your permission before passing anything to a dealer.",
+      noteDecide: "Approval, price, down payment and terms are set by the dealer or lender, not by City Cars Houston TX.",
+      msgHello: function (n, c) { return "Hi City Cars Houston TX, I'm " + n + " from " + c + ". I built my plan on your website:"; },
+      msgEnd: "Which dealers can you connect me with?"
+    }
+  };
