@@ -1,7 +1,8 @@
 # Publicar City Cars Houston en Vercel
 
-El sitio es estático: no tiene paso de compilación. Vercel publica **solo la carpeta `public/`**.
-`CLAUDE.md` y esta guía quedan fuera y nunca se publican.
+El sitio es estático (HTML/CSS/JS sin build) salvo por una sola pieza de backend: el asistente de
+chat del inventario, que corre como función serverless en `public/api/chat.js`. Vercel publica
+**solo la carpeta `public/`**. `CLAUDE.md` y esta guía quedan fuera y nunca se publican.
 
 ```
 public/
@@ -15,7 +16,11 @@ public/
 ├── js/
 │   ├── vehicles.js       → INVENTARIO (variable global VEHICLES) — único archivo a editar para cambiar carros
 │   ├── i18n.js           → textos de la interfaz ES/EN (variable global I18N)
-│   └── app.js            → lógica: menú, inventario, plan, ficha de especificaciones
+│   ├── app.js            → lógica: menú, inventario, plan, ficha de especificaciones
+│   └── chat-widget.js    → widget del asistente de chat (llama a /api/chat)
+├── api/
+│   └── chat.js           → función serverless (Node): llama a Anthropic y traza con Opik
+├── package.json          → dependencias solo de api/chat.js (@anthropic-ai/sdk, opik)
 ├── fonts/                → Overpass WOFF2 (licencia OFL)
 ├── img/                  → fotos WebP (640 y 1200 px)
 ├── vercel.json           → cabeceras de seguridad (CSP, HSTS…) y redirects
@@ -23,8 +28,10 @@ public/
 └── robots.txt, favicon.svg
 ```
 
-Los tres scripts se cargan en orden fijo (`vehicles.js` → `i18n.js` → `app.js`) con `defer` en cada
-HTML; los dos primeros solo declaran datos globales (`VEHICLES`, `I18N`) y no tienen lógica.
+Los cuatro scripts de frontend se cargan en orden fijo (`vehicles.js` → `i18n.js` → `app.js` →
+`chat-widget.js`) con `defer` en cada HTML; los dos primeros solo declaran datos globales
+(`VEHICLES`, `I18N`) y no tienen lógica. La API key de Anthropic y la de Opik **solo** viven en
+`public/api/chat.js`, que corre en el servidor — nunca llegan al navegador.
 
 Deploy actual: **https://n28-eight.vercel.app/** (proyecto de Vercel con **Root Directory = `public`**).
 Dominio propio: pendiente de conectar.
@@ -60,12 +67,30 @@ El proyecto ya está creado y conectado al repositorio. Configuración clave:
 - **Build Command:** *(vacío)*.
 - **Output Directory:** *(vacío / por defecto, ya que Root Directory ya apunta a `public`)*.
 
-Cada push a la rama de producción vuelve a desplegar solo.
+Cada push a la rama de producción vuelve a desplegar solo. Vercel detecta `public/package.json` y
+corre `npm install` automáticamente para la función `public/api/chat.js` — no hace falta configurar
+un Build Command.
 
 Si necesitas crear el proyecto desde cero:
 1. <https://vercel.com/new> → importa el repositorio.
 2. En **Configure Project**, cambia **Root Directory** a `public`.
 3. **Deploy**. Te da una URL tipo `https://tu-proyecto.vercel.app`.
+
+## 1.1 Variables de entorno del asistente de chat
+
+En el proyecto de Vercel → **Settings** → **Environment Variables**, agrega (nunca las pongas en el
+código ni las compartas por chat/email):
+
+| Variable | Obligatoria | Qué es |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | Sí | Key de la API de Anthropic (console.anthropic.com). Sin ella, el chat responde "no disponible" pero el resto del sitio sigue funcionando normal. |
+| `ANTHROPIC_MODEL` | No | ID del modelo (por defecto `claude-sonnet-5-5`). Cámbialo cuando Anthropic publique un modelo nuevo. |
+| `OPIK_API_KEY` | Para trazas | Key del workspace de Opik (comet.com) donde se ven las conversaciones del asistente. Sin ella, el chat funciona igual pero sin observabilidad. |
+| `OPIK_WORKSPACE` | No | Por defecto `n28ink`. |
+| `OPIK_PROJECT_NAME` | No | Por defecto `city-cars-houston-chat` (así aparece el proyecto en el dashboard de Opik). |
+
+Después de agregarlas, vuelve a desplegar (Vercel → **Deployments** → ⋯ → **Redeploy**) para que la
+función las tome.
 
 ## 2. Verificar en la URL `.vercel.app`
 
@@ -75,6 +100,9 @@ Si necesitas crear el proyecto desde cero:
   (vienen de `public/vercel.json`).
 - Pestaña **Console**: sin errores.
 - Prueba desde el celular: inventario → **Ver más** de un vehículo → **Enviar mensaje por WhatsApp**.
+- Abre el botón **"Preguntar al asistente"** (esquina inferior derecha) y haz una pregunta sobre el
+  inventario (ej. "¿tienen una troca 4x4?"). Debe responder sin mencionar precios ni montos. Si dice
+  que no está disponible, revisa que `ANTHROPIC_API_KEY` esté configurada (paso 1.1).
 - Prueba <https://securityheaders.com> con tu URL (debe salir A o A+).
 
 ## 3. Conectar tu dominio personalizado
@@ -126,14 +154,22 @@ proyectos con bundler, no aplica aquí). Falta un paso manual en el dashboard:
 cd public && python3 -m http.server 8080
 # abrir http://localhost:8080/es/
 ```
-El servidor local no envía las cabeceras de `vercel.json`; esas solo aplican en Vercel.
+El servidor local no envía las cabeceras de `vercel.json`; esas solo aplican en Vercel. El botón
+del asistente aparece igual, pero el chat no responde (no hay función serverless en un servidor
+estático); usa `vercel dev` desde la raíz del proyecto si necesitas probar `public/api/chat.js`
+en local.
 
 ---
 
 ## Alternativa: Cloudflare Pages
 
 El repo conserva `public/_headers` y `public/_redirects` (equivalentes a `vercel.json` pero en
-sintaxis de Cloudflare Pages) por si el sitio se migra o se publica también ahí. Para usarlos:
+sintaxis de Cloudflare Pages) por si el sitio se migra o se publica también ahí. El sitio estático
+(inventario, plan, privacidad) funciona igual ahí. El asistente de chat **no**: `public/api/chat.js`
+usa la firma de función serverless de Vercel (`module.exports = async (req, res) => …`); Cloudflare
+Pages Functions usa otra firma (`onRequestPost({ request, env })`). Si migras a Cloudflare, habría
+que reescribir ese único archivo para Pages Functions — el resto del sitio, incluido el widget del
+navegador, no cambia. Para usarlo tal cual en Vercel:
 
 1. <https://dash.cloudflare.com> → **Workers & Pages** → **Create** → pestaña **Pages** →
    **Connect to Git**, elige el repositorio.

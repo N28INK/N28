@@ -173,3 +173,7 @@
                en: "Heavy-duty work and dirt roads, practically new." }
     }
   ];
+
+  // Permite reusar el mismo inventario desde public/api/chat.js (Node/CommonJS),
+  // sin tocar el comportamiento en el navegador (module es undefined ahí).
+  if (typeof module !== "undefined" && module.exports) { module.exports = VEHICLES; }

@@ -1,0 +1,9 @@
+{
+  "name": "city-cars-houston-api",
+  "private": true,
+  "description": "Dependencias del backend serverless (public/api/) de City Cars Houston TX. El resto del sitio sigue siendo HTML/CSS/JS estático sin build.",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
+    "opik": "^2.2.73"
+  }
+}

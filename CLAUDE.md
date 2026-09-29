@@ -40,6 +40,19 @@ Toda la conversión va a WhatsApp (+1 281 602 7044). No hay backend ni base de d
 - El JS se reestructuró en `public/js/` (`vehicles.js`, `i18n.js`, `app.js`) y el CSS pasó a
   `public/css/styles.css`; sigue siendo HTML/CSS/JS plano sin build ni dependencias de runtime
   (probado con jsdom sirviendo `public/` por HTTP: las 4 páginas cargan sin errores de consola).
+- **Asistente de chat del inventario (confirmado por el dueño en sesión, excepción puntual a "sin
+  backend"/"sin dependencias sin preguntar")**: widget `public/js/chat-widget.js` (botón "Preguntar
+  al asistente" en `/es/` y `/en/`) que llama a la función serverless `public/api/chat.js` (Node,
+  Vercel), la cual usa la API de Anthropic (`ANTHROPIC_API_KEY`, modelo configurable vía
+  `ANTHROPIC_MODEL`) y traza cada conversación con Opik (`OPIK_API_KEY`, workspace `n28ink`,
+  proyecto `city-cars-houston-chat`). Las API keys viven solo como variables de entorno en Vercel
+  (ver `DEPLOY.md` 1.1), nunca en el código ni en el repo. El prompt del asistente reusa
+  `VEHICLES` (única fuente de verdad; se exporta también como CommonJS al final de
+  `public/js/vehicles.js` para que `api/chat.js` lo lea) y tiene grabadas las mismas reglas del
+  sitio: sin precios/inicial/APR/plazos, sin frases prohibidas, sin inventar vehículos/dealers,
+  siempre canaliza a WhatsApp (281) 602-7044 para cualquier paso real. `public/package.json` trae
+  las únicas dos dependencias de runtime del sitio (`@anthropic-ai/sdk`, `opik`), usadas solo por
+  esa función; el resto del sitio sigue sin build ni dependencias.
 
 ## Tareas pendientes (en este orden)
 1. **Inventario real**: reemplaza los 6 vehículos de ejemplo por los 10 de `img/`

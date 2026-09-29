@@ -41,7 +41,17 @@
       noteShare: "No marcaste la autorización para compartir con dealers. Te contestamos igual y te pedimos permiso antes de pasar tus datos a un dealer.",
       noteDecide: "La aprobación, el precio, la inicial y los términos los decide el dealer o el financiador, no City Cars Houston TX.",
       msgHello: function (n, c) { return "Hola City Cars Houston TX, soy " + n + " de " + c + ". Creé mi plan en la página:"; },
-      msgEnd: "¿Con qué dealers me pueden conectar?"
+      msgEnd: "¿Con qué dealers me pueden conectar?",
+      chat: {
+        launch: "Preguntar al asistente", close: "Cerrar chat",
+        title: "Asistente de inventario",
+        disclaimer: "Es un asistente de IA para explorar el inventario. City Cars Houston TX no es un dealer ni un prestamista; no da precios, iniciales ni aprobaciones. Para eso, escribe a nuestro WhatsApp oficial (281) 602-7044.",
+        greeting: "Hola, puedo ayudarte a encontrar el vehículo que buscas en nuestro inventario. ¿Qué necesitas: una troca para trabajo, una SUV familiar, algo para el primer carro?",
+        placeholder: "Escribe tu pregunta…",
+        send: "Enviar", sending: "Enviando…",
+        error: "No pude responder en este momento. Escríbenos por WhatsApp y con gusto te ayudamos.",
+        toWhatsapp: "Seguir por WhatsApp"
+      }
     },
     en: {
       types: { suv: "SUV", truck: "Truck" }, used: "Used",
@@ -80,6 +90,16 @@
       noteShare: "You didn't check the box to share with dealers. We'll still reply, and we'll ask your permission before passing anything to a dealer.",
       noteDecide: "Approval, price, down payment and terms are set by the dealer or lender, not by City Cars Houston TX.",
       msgHello: function (n, c) { return "Hi City Cars Houston TX, I'm " + n + " from " + c + ". I built my plan on your website:"; },
-      msgEnd: "Which dealers can you connect me with?"
+      msgEnd: "Which dealers can you connect me with?",
+      chat: {
+        launch: "Ask the assistant", close: "Close chat",
+        title: "Inventory assistant",
+        disclaimer: "This is an AI assistant for browsing the inventory. City Cars Houston TX is not a dealer or a lender; it can't give prices, down payments or approvals. For that, message our official WhatsApp at (281) 602-7044.",
+        greeting: "Hi, I can help you find a vehicle in our inventory. What do you need: a work truck, a family SUV, something for a first car?",
+        placeholder: "Type your question…",
+        send: "Send", sending: "Sending…",
+        error: "I couldn't answer right now. Message us on WhatsApp and we'll gladly help.",
+        toWhatsapp: "Continue on WhatsApp"
+      }
     }
   };
