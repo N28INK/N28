@@ -1,0 +1,20 @@
+{
+  "name": "marketplace-bdc-bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Bot de Messenger/Marketplace para pre-calificar leads de vehiculos financiados, sin mencionar montos ni precios.",
+  "main": "index.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "body-parser": "^1.20.2",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "node-cache": "^5.1.2"
+  }
+}
