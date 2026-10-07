@@ -1,4 +1,4 @@
-NOTIFICADOR MARKETPLACE v0.5 — LÉEME
+NOTIFICADOR MARKETPLACE v0.6 — LÉEME
 =====================================
 
 ¿Qué hace?
@@ -10,11 +10,14 @@ dijo y un enlace para responder. También muestra una notificación en el PC.
 
 ¿Cómo se instala? (5 minutos)
 -----------------------------
-1. Descomprime el .zip. Queda una carpeta "notificador-marketplace".
+1. Descomprime el .zip (clic derecho → "Extraer todo…").
 2. En el PC, abre Chrome y ve a:  chrome://extensions
 3. Activa arriba a la derecha "Modo de desarrollador".
-4. Pulsa "Cargar descomprimida" y elige la carpeta "notificador-marketplace".
+4. Pulsa "Cargar descomprimida" y elige la carpeta donde ves directamente el
+   archivo manifest.json (si ves otra carpeta adentro, entra a esa).
    Se abre sola la página de Configuración.
+   Para ACTUALIZAR a una versión nueva: reemplaza los archivos de esa carpeta
+   y pulsa el botón ⟳ de la extensión en chrome://extensions.
 5. Fija el icono: pieza de rompecabezas (🧩) junto a la barra de direcciones →
    chincheta junto a "Notificador Marketplace".
 
@@ -53,9 +56,20 @@ Déjalo vigilando
   Con solo el inicio de Facebook abierto (sin la lista de chats) no puede
   ver los mensajes. Desde abril de 2026 messenger.com ya no existe y
   redirige a facebook.com/messages.
-- Recomendado: en chrome://settings/performance, en "Mantener siempre
-  activos estos sitios", agrega facebook.com. (La extensión además le pide
-  a Chrome que no descargue esa pestaña.)
+- Con la ventana MINIMIZADA sigue avisando (v0.6):
+  · revisa la pestaña cada 30 segundos y le pide a Chrome que no la
+    congele ni la descargue;
+  · además vigila el título de la pestaña ("(1) Messenger" o "Carlos te
+    envió un mensaje"). Si Facebook no redibuja la lista estando
+    minimizado, igual te llega un aviso "Nuevo mensaje en Facebook" con el
+    nombre (cuando Facebook lo muestra) y el enlace para responder.
+- MUY recomendado: en chrome://settings/performance
+  · en "Mantener siempre activos estos sitios" agrega facebook.com;
+  · si usas portátil, apaga "Ahorro de energía" o ponlo en "solo cuando la
+    batería esté baja" (ese modo congela pestañas en segundo plano).
+- En Windows: Configuración → Sistema → Energía → que el PC no entre en
+  suspensión mientras quieras recibir avisos. Con el PC suspendido no hay
+  avisos.
 - El PC tiene que quedar ENCENDIDO, sin suspenderse, con Chrome abierto.
   Si cierras Chrome o el PC se duerme, no avisa.
 - Haz clic en el icono de la extensión para ver si está vigilando:
@@ -87,6 +101,16 @@ Límites honestos
 - CallMeBot es gratis para uso personal, pero es de un tercero, no de Meta.
   No le des tu APIKEY a nadie. Si CallMeBot falla, prueba Telegram.
 - Tus datos (número, APIKEY, token) se guardan solo en este Chrome.
+
+Cambios v0.6 (ventana minimizada)
+---------------------------------
+- Con Chrome minimizado los avisos no llegaban a Telegram/WhatsApp:
+  · si Chrome congelaba la pestaña, la revisión periódica se quedaba
+    esperando para siempre y no volvía a revisar: ahora tiene tiempo límite;
+  · la extensión le pide a Chrome que no congele la pestaña de Facebook;
+  · plan B por el título de la pestaña (ver "Déjalo vigilando");
+  · revisión cada 30 s en vez de cada minuto, y revisión inmediata al
+    volver a mostrar la ventana.
 
 Cambios v0.5 (auditoría)
 ------------------------

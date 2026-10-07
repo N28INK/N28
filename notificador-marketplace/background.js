@@ -1,6 +1,6 @@
-/* Notificador Marketplace v0.5 — service worker (background.js)
+/* Notificador Marketplace v0.6 — service worker (background.js)
  * Recibe la lista de chats (del content script o de su propio despertador de
- * 1 minuto) y, cuando hay un mensaje nuevo sin leer, te avisa al teléfono por
+ * 30 segundos, o del cambio de título de la pestaña) y, cuando hay un mensaje nuevo sin leer, te avisa al teléfono por
  * WhatsApp (CallMeBot) o Telegram, y también con una notificación en el PC.
  */
 'use strict';
@@ -11,6 +11,9 @@ const DEFAULTS = {
   phone: '', apikey: '', tg_token: '', tg_chatid: ''
 };
 const ALARM = 'mn-keepalive';
+const ALARM_MIN = 0.5;                       // revisar cada 30 s (mínimo que permite Chrome)
+const SCRIPT_TIMEOUT_MS = 10 * 1000;
+const TITLE_RESCAN_MS = 6 * 1000;
 const FB_URLS = ['https://www.facebook.com/*', 'https://www.messenger.com/*'];
 const INBOX_URL = 'https://www.facebook.com/messages/';
 const COOLDOWN_MS = 2 * 60 * 1000;          // máx. 1 aviso por chat cada 2 min
@@ -24,7 +27,7 @@ const NO_LIST_REPEAT_MS = 4 * 60 * 60 * 1000;
 // service worker despierta (la v0.4 la recreaba en cada arranque).
 async function ensureAlarm() {
   const a = await chrome.alarms.get(ALARM);
-  if (!a) await chrome.alarms.create(ALARM, { periodInMinutes: 1 });
+  if (!a || a.periodInMinutes !== ALARM_MIN) await chrome.alarms.create(ALARM, { periodInMinutes: ALARM_MIN });
 }
 ensureAlarm();
 
@@ -51,41 +54,117 @@ async function keepaliveScan() {
   } catch (e) {
     return;
   }
-  let listFound = false;
-  for (const tab of tabs) {
-    try {
-      // Que Chrome no descargue la pestaña para ahorrar memoria.
-      if (tab.autoDiscardable !== false) {
-        await chrome.tabs.update(tab.id, { autoDiscardable: false }).catch(() => {});
-      }
-      if (tab.discarded) {
-        await chrome.tabs.reload(tab.id);
-        continue;
-      }
-      const scan = await collectFromTab(tab.id);
-      if (scan && scan.threads && scan.threads.length) {
-        listFound = true;
-        enqueue(scan);
-      }
-    } catch (e) {
-      /* pestaña cargando o sin acceso: se intenta en el próximo minuto */
+  // Todas a la vez y con tiempo límite: una pestaña congelada ya no bloquea a las demás.
+  const found = await Promise.all(tabs.map(scanTab));
+  await noteListPresence(found.some(Boolean));
+}
+
+// Escanea una pestaña. Devuelve true si vio la lista de chats.
+async function scanTab(tab) {
+  try {
+    // Que Chrome no descargue la pestaña para ahorrar memoria.
+    if (tab.autoDiscardable !== false) {
+      await chrome.tabs.update(tab.id, { autoDiscardable: false }).catch(() => {});
     }
+    if (tab.discarded) {
+      await chrome.tabs.reload(tab.id);
+      return false;
+    }
+    const scan = await collectFromTab(tab.id);
+    if (scan && scan.threads && scan.threads.length) {
+      await enqueue(scan);
+      return true;
+    }
+  } catch (e) {
+    /* pestaña cargando, congelada o sin acceso: se intenta en la próxima vuelta */
   }
-  await noteListPresence(listFound);
+  return false;
+}
+
+// executeScript en una pestaña congelada por Chrome puede no responder nunca
+// (la v0.5 se quedaba esperando para siempre y dejaba de revisar).
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))
+  ]);
 }
 
 async function collectFromTab(tabId) {
-  const call = () => chrome.scripting.executeScript({
+  const call = () => withTimeout(chrome.scripting.executeScript({
     target: { tabId: tabId },
     func: () => (typeof globalThis.mnCollect === 'function' ? globalThis.mnCollect() : null)
-  });
+  }), SCRIPT_TIMEOUT_MS);
   let res = await call();
   if (!res || !res[0] || res[0].result == null) {
     // Pestaña abierta antes de instalar/actualizar la extensión: inyectar el lector.
-    await chrome.scripting.executeScript({ target: { tabId: tabId }, files: ['collector.js'] });
+    await withTimeout(chrome.scripting.executeScript({ target: { tabId: tabId }, files: ['collector.js'] }), SCRIPT_TIMEOUT_MS);
     res = await call();
   }
   return res && res[0] ? res[0].result : null;
+}
+
+/* ---------------- plan B: el título de la pestaña ----------------
+ * Con la ventana minimizada, Facebook a veces no redibuja la lista de chats,
+ * pero SÍ cambia el título de la pestaña: "(1) Messenger | Facebook" o hace
+ * parpadear "Carlos te envió un mensaje". Chrome nos avisa de ese cambio al
+ * instante. Entonces: se relee la pestaña y, si la lista no muestra el mensaje
+ * (no salió ningún aviso), se manda un aviso genérico igualmente.
+ */
+const FLASH_RE = /\b(?:te envi[oó] un mensaje|te ha enviado un mensaje|te escribi[oó]|sent you a message|messaged you|sent a message|nuevo mensaje|new message)/i;
+const titleBusy = new Set();
+
+chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
+  // Página (re)cargada: el primer título solo sirve de referencia, no avisa.
+  if (info.status === 'loading') chrome.storage.session.remove('mn_title_' + tabId).catch(() => {});
+  if (!info.title || !tab || !/^https:\/\/www\.(facebook|messenger)\.com\//.test(tab.url || '')) return;
+  onTitle(tab, info.title).catch((e) => console.error(TAG, e));
+});
+chrome.tabs.onRemoved.addListener((tabId) => {
+  chrome.storage.session.remove('mn_title_' + tabId).catch(() => {});
+});
+
+async function onTitle(tab, title) {
+  const key = 'mn_title_' + tab.id;
+  const d = await chrome.storage.session.get(key);
+  const known = !!d[key];
+  const prevCount = known ? d[key].count : 0;
+  const flash = FLASH_RE.exec(title);
+  const m = /^\((\d+)\)/.exec(title);
+  const count = m ? parseInt(m[1], 10) : 0;
+  // El título parpadeante no trae el "(N)": no tocar el contador con él.
+  if (!flash) await chrome.storage.session.set({ [key]: { count: count } });
+  if (!flash && (!known || count <= prevCount)) return;
+  if (titleBusy.has(tab.id)) return; // el parpadeo cambia el título cada segundo
+  titleBusy.add(tab.id);
+  try {
+    const s = await getSettings();
+    if (!s.enabled) return;
+    const since = Date.now();
+    await scanTab(tab);
+    await new Promise((r) => setTimeout(r, TITLE_RESCAN_MS));
+    await scanTab(tab);
+    await queue;
+    const st = (await chrome.storage.local.get('mn_status')).mn_status || {};
+    if ((st.lastAlertAt || 0) >= since - COOLDOWN_MS) return; // ya se avisó por la lista
+    if (s.marketplaceOnly) return; // sin la lista no se sabe si es de Marketplace
+    const name = flash ? title.slice(0, flash.index).replace(/^\(\d+\)\s*/, '').trim() : '';
+    await alertGeneric(name, count, s);
+  } finally {
+    titleBusy.delete(tab.id);
+  }
+}
+
+async function alertGeneric(name, count, s) {
+  const text =
+    '🔔 *Nuevo mensaje en Facebook*\n\n' +
+    (name ? 'De: ' + name + '\n' : '') +
+    (count ? 'Tienes ' + count + ' chat(s) sin leer.\n' : '') +
+    '\nResponder: ' + INBOX_URL;
+  if (s.pcNotify) await notifyPC('mn-open-inbox-' + Date.now(), 'Nuevo mensaje en Facebook', name ? 'De: ' + name : 'Tienes mensajes sin leer.');
+  const r = await sendNotification(text, s);
+  if (r.ok) await setStatus({ lastAlertAt: Date.now(), lastAlertName: name || 'Facebook', lastError: '' });
+  else await setStatus({ lastError: r.message });
 }
 
 // Si nadie tiene abierta la lista de chats, no hay nada que vigilar:
@@ -124,7 +203,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 chrome.notifications.onClicked.addListener((id) => {
   const m = /^mn-thread-(\d+)/.exec(id);
   if (m) chrome.tabs.create({ url: INBOX_URL + 't/' + m[1] + '/' });
-  else if (id === 'mn-open-inbox') chrome.tabs.create({ url: INBOX_URL, pinned: true });
+  else if (id.startsWith('mn-open-inbox')) chrome.tabs.create({ url: INBOX_URL, pinned: true });
   chrome.notifications.clear(id);
 });
 
