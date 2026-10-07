@@ -1,0 +1,172 @@
+<style>
+.nm-demo { box-sizing: border-box; width: 100%; max-width: 660px; margin: 0 auto; font-family: -apple-system, "Segoe UI", Arial, sans-serif; color: var(--hatch-widget-text); }
+.nm-demo * { box-sizing: border-box; }
+.nm-stage { display: flex; gap: 12px; align-items: stretch; justify-content: center; flex-wrap: wrap; }
+.nm-browser { flex: 1 1 340px; min-width: 300px; max-width: 440px; border: 1px solid var(--hatch-widget-border); border-radius: 10px; overflow: hidden; background: #f0f2f5; box-shadow: var(--hatch-widget-shadow); position: relative; transition: opacity .6s; }
+.nm-browser.dimmed { opacity: .35; }
+.nm-tabbar { display: flex; align-items: center; gap: 8px; background: #dee1e6; padding: 8px 10px; }
+.nm-dots { display: flex; gap: 5px; }
+.nm-dots span { width: 10px; height: 10px; border-radius: 50%; background: #b0b3b8; }
+.nm-url { flex: 1; background: #fff; border-radius: 12px; font-size: 11px; color: #65676b; padding: 4px 12px; }
+.nm-ext { width: 26px; height: 26px; border-radius: 6px; display: flex; align-items: center; justify-content: center; background: #e4e6eb; transition: all .3s; flex-shrink: 0; }
+.nm-ext svg { width: 16px; height: 16px; fill: #8a8d91; transition: all .3s; }
+.nm-ext.active { background: #1877f2; animation: nm-pulse 1s infinite; }
+.nm-ext.active svg { fill: #fff; }
+@keyframes nm-pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.15); } }
+.nm-fbbody { display: flex; min-height: 260px; background: #f0f2f5; }
+.nm-feed { flex: 1; padding: 10px; }
+.nm-feed h4 { margin: 2px 0 8px; font-size: 13px; color: #050505; }
+.nm-listing { background: #fff; border-radius: 8px; padding: 8px; margin-bottom: 8px; display: flex; gap: 8px; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.nm-car { width: 52px; height: 38px; border-radius: 6px; background: linear-gradient(135deg,#4a6fa5,#22354f); flex-shrink: 0; }
+.nm-listing .t { font-size: 11px; color: #050505; font-weight: 600; }
+.nm-listing .p { font-size: 11px; color: #65676b; }
+.nm-dock { width: 172px; background: #fff; border-left: 1px solid #e4e6eb; display: flex; flex-direction: column; }
+.nm-dock-head { padding: 8px 10px; font-weight: 700; font-size: 12px; color: #050505; border-bottom: 1px solid #e4e6eb; }
+.nm-chat { display: flex; gap: 8px; padding: 8px 10px; border-bottom: 1px solid #f0f2f5; align-items: center; }
+.nm-avatar { width: 32px; height: 32px; border-radius: 50%; background: #ccd0d5; color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; }
+.nm-chat .nm-name { font-size: 11px; color: #050505; }
+.nm-chat .nm-prev { font-size: 10px; color: #65676b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 105px; }
+.nm-chat.unread .nm-name { font-weight: 700; }
+.nm-chat.unread .nm-prev { font-weight: 600; color: #050505; }
+.nm-dot { width: 9px; height: 9px; border-radius: 50%; background: #0084ff; margin-left: auto; flex-shrink: 0; opacity: 0; transform: scale(0); transition: all .4s; }
+.nm-chat.unread .nm-dot { opacity: 1; transform: scale(1); }
+.nm-newchat { max-height: 0; overflow: hidden; opacity: 0; transition: max-height .6s, opacity .6s; padding-top: 0; padding-bottom: 0; }
+.nm-newchat.show { max-height: 60px; opacity: 1; padding-top: 8px; padding-bottom: 8px; border-bottom: 1px solid #f0f2f5; }
+.nm-tag { display: inline-block; font-size: 9px; background: #e7f3ff; color: #1877f2; border-radius: 4px; padding: 1px 5px; margin-left: 4px; font-weight: 600; }
+.nm-toast { position: absolute; left: 12px; right: 12px; bottom: 12px; background: #242526; color: #fff; font-size: 12px; border-radius: 8px; padding: 10px 12px; display: flex; gap: 8px; align-items: center; opacity: 0; transform: translateY(10px); transition: all .5s; z-index: 3; }
+.nm-toast.show { opacity: 1; transform: translateY(0); }
+.nm-toast svg { width: 16px; height: 16px; fill: #ffd028; flex-shrink: 0; }
+.nm-minbanner { position: absolute; left: 0; right: 0; bottom: 0; background: #1c1e21; color: #fff; font-size: 12px; padding: 10px 12px; display: flex; gap: 8px; align-items: center; opacity: 0; transform: translateY(100%); transition: all .6s; z-index: 4; }
+.nm-minbanner.show { opacity: 1; transform: none; }
+.nm-minbanner svg { width: 16px; height: 16px; fill: #fff; flex-shrink: 0; }
+.nm-phone { flex: 0 1 200px; min-width: 170px; max-width: 210px; border: 1px solid var(--hatch-widget-border); border-radius: 24px; overflow: hidden; background: #0b141a; box-shadow: var(--hatch-widget-shadow); display: flex; flex-direction: column; }
+.nm-wa-head { background: #075e54; color: #fff; padding: 10px 12px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.nm-wa-head .nm-avatar { width: 30px; height: 30px; font-size: 11px; background: #128c7e; }
+.nm-wa-body { flex: 1; min-height: 220px; padding: 12px 10px; display: flex; flex-direction: column; gap: 8px; background: #0b141a; }
+.nm-bubble { background: #005c4b; color: #e9edef; border-radius: 8px; padding: 8px 10px; font-size: 12px; line-height: 1.45; max-width: 100%; opacity: 0; transform: translateY(12px) scale(.97); transition: all .6s; }
+.nm-bubble.show { opacity: 1; transform: none; }
+.nm-bubble .nm-time { display: block; text-align: right; font-size: 10px; color: #8696a0; margin-top: 4px; }
+.nm-notif { background: #1f2c34; border-radius: 12px; padding: 10px; font-size: 11px; color: #e9edef; opacity: 0; transform: translateY(-16px); transition: all .5s; }
+.nm-notif.show { opacity: 1; transform: none; }
+.nm-notif b { color: #fff; }
+.nm-notif .nm-app { color: #8696a0; font-size: 10px; text-transform: uppercase; letter-spacing: .5px; }
+.nm-caption { margin-top: 12px; background: var(--hatch-widget-surface-muted); border: 1px solid var(--hatch-widget-border); border-radius: 10px; padding: 12px 14px; font-size: 14px; min-height: 62px; }
+.nm-caption b { color: var(--hatch-widget-accent); }
+.nm-controls { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+.nm-btn { background: var(--hatch-widget-accent); color: var(--hatch-widget-on-accent); border: none; border-radius: 8px; padding: 9px 18px; font-size: 14px; cursor: pointer; font-weight: 600; }
+.nm-btn:disabled { opacity: .5; cursor: default; }
+.nm-progress { flex: 1; height: 6px; background: var(--hatch-widget-surface-muted); border-radius: 3px; overflow: hidden; }
+.nm-progress i { display: block; height: 100%; width: 0; background: var(--hatch-widget-accent); border-radius: 3px; transition: width .3s; }
+.nm-note { font-size: 11px; color: var(--hatch-widget-muted); margin-top: 8px; }
+</style>
+<div class="nm-demo">
+  <div class="nm-stage">
+    <div class="nm-browser" id="nmBrowser">
+      <div class="nm-tabbar">
+        <div class="nm-dots"><span></span><span></span><span></span></div>
+        <div class="nm-url">facebook.com</div>
+        <div class="nm-ext" id="nmBell" title="Notificador Marketplace">
+          <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5S10.5 3.17 10.5 4v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+        </div>
+      </div>
+      <div class="nm-fbbody">
+        <div class="nm-feed">
+          <h4>Marketplace</h4>
+          <div class="nm-listing"><div class="nm-car"></div><div><div class="t">Tahoe 2021 Premier</div><div class="p">$5,000 down · Houston</div></div></div>
+          <div class="nm-listing"><div class="nm-car" style="background:linear-gradient(135deg,#6b5b3e,#2f2a1e)"></div><div><div class="t">Silverado 2022</div><div class="p">$5,000 down · Houston</div></div></div>
+        </div>
+        <div class="nm-dock">
+          <div class="nm-dock-head">Chats</div>
+          <div class="nm-chat">
+            <div class="nm-avatar">AQ</div>
+            <div><div class="nm-name">Anali Gudino</div><div class="nm-prev">Nos vemos el sábado</div></div>
+            <div class="nm-dot"></div>
+          </div>
+          <div class="nm-chat nm-newchat" id="nmNewChat">
+            <div class="nm-avatar" style="background:#1877f2">CM</div>
+            <div><div class="nm-name">Carlos Mendez<span class="nm-tag">Marketplace</span></div><div class="nm-prev">Hola, ¿sigue disponible?</div></div>
+            <div class="nm-dot"></div>
+          </div>
+        </div>
+      </div>
+      <div class="nm-toast" id="nmToast">
+        <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5S10.5 3.17 10.5 4v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+        <span>Notificador Marketplace: mensaje nuevo detectado</span>
+      </div>
+      <div class="nm-minbanner" id="nmMinBanner">
+        <svg viewBox="0 0 24 24"><path d="M20 14H4v-4h16v4zm0-6H4V6h16v2z" opacity=".9"/><path d="M4 18h16v2H4z"/></svg>
+        <span>Ventana minimizada — la extensión sigue vigilando</span>
+      </div>
+    </div>
+    <div class="nm-phone">
+      <div class="nm-wa-head"><div class="nm-avatar">CB</div><div>CallMeBot</div></div>
+      <div class="nm-wa-body">
+        <div class="nm-notif" id="nmNotif">
+          <div class="nm-app">WhatsApp · ahora</div>
+          <b>CallMeBot:</b> Nuevo mensaje en Marketplace de Carlos Mendez…
+        </div>
+        <div class="nm-bubble" id="nmBubble">
+          Nuevo mensaje en Marketplace<br><br>De: Carlos Mendez<br>"Hola, ¿sigue disponible el Tahoe?"<br><br>Abre Messenger para responder.
+          <span class="nm-time">11:42</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="nm-caption" id="nmCaption"></div>
+  <div class="nm-controls">
+    <button class="nm-btn" id="nmReplay">Volver a ver</button>
+    <div class="nm-progress"><i id="nmBar"></i></div>
+  </div>
+  <div class="nm-note">Simulación animada — así se verá en tu PC y en tu teléfono cuando la instales.</div>
+</div>
+<script>
+(function(){
+  var steps = [
+    { t: 2800, cap: "<b>1 de 5</b> — Usas Facebook normal en Chrome. El panel de chat está al lado y la extensión vigila en silencio.", fn: function(){} },
+    { t: 2600, cap: "<b>2 de 5</b> — Llega un mensaje nuevo de Marketplace. Aparece sin leer, con el puntito azul.", fn: function(){ document.getElementById('nmNewChat').classList.add('show','unread'); } },
+    { t: 2600, cap: "<b>3 de 5</b> — La extensión lo detecta al instante.", fn: function(){ document.getElementById('nmBell').classList.add('active'); document.getElementById('nmToast').classList.add('show'); } },
+    { t: 3400, cap: "<b>4 de 5</b> — Aunque minimices la ventana, sigue vigilando. Chrome solo necesita estar abierto.", fn: function(){ document.getElementById('nmBrowser').classList.add('dimmed'); document.getElementById('nmMinBanner').classList.add('show'); } },
+    { t: 4200, cap: "<b>5 de 5</b> — Te llega el WhatsApp a tu teléfono con quién escribió y qué dijo. ¡A responder rápido!", fn: function(){
+        document.getElementById('nmNotif').classList.add('show');
+        setTimeout(function(){ document.getElementById('nmBubble').classList.add('show'); }, 900);
+      } }
+  ];
+  var caption = document.getElementById('nmCaption');
+  var bar = document.getElementById('nmBar');
+  var replay = document.getElementById('nmReplay');
+  var timers = [];
+  var total = steps.reduce(function(a,s){ return a + s.t; }, 0);
+
+  function reset(){
+    timers.forEach(clearTimeout); timers = [];
+    document.getElementById('nmNewChat').classList.remove('show','unread');
+    document.getElementById('nmBell').classList.remove('active');
+    document.getElementById('nmToast').classList.remove('show');
+    document.getElementById('nmBrowser').classList.remove('dimmed');
+    document.getElementById('nmMinBanner').classList.remove('show');
+    document.getElementById('nmNotif').classList.remove('show');
+    document.getElementById('nmBubble').classList.remove('show');
+    bar.style.width = '0';
+  }
+  function play(){
+    reset();
+    replay.disabled = true;
+    var at = 0;
+    steps.forEach(function(s, i){
+      (function(step, delay, idx, endAt){
+        timers.push(setTimeout(function(){
+          caption.innerHTML = step.cap;
+          step.fn();
+          bar.style.width = Math.round(endAt / total * 100) + '%';
+          if (idx === steps.length - 1) {
+            timers.push(setTimeout(function(){ replay.disabled = false; }, 600));
+          }
+        }, delay));
+      })(s, at, i, at + s.t);
+      at += s.t;
+    });
+  }
+  replay.addEventListener('click', play);
+  play();
+})();
+</script>

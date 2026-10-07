@@ -1,0 +1,78 @@
+/* Notificador Marketplace v0.5 — popup.js */
+'use strict';
+
+const INBOX_URL = 'https://www.facebook.com/messages/';
+
+function ago(ts) {
+  const s = Math.round((Date.now() - ts) / 1000);
+  if (s < 60) return 'hace ' + s + ' s';
+  if (s < 3600) return 'hace ' + Math.round(s / 60) + ' min';
+  if (s < 86400) return 'hace ' + Math.round(s / 3600) + ' h';
+  return 'hace ' + Math.round(s / 86400) + ' días';
+}
+
+function setBox(id, text, kind) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.className = 'box ' + (kind || '');
+}
+
+async function refresh() {
+  const d = await chrome.storage.local.get(['mn_settings', 'mn_status']);
+  const cfg = d.mn_settings || {};
+  const st = d.mn_status || {};
+  const channel = cfg.channel === 'telegram' ? 'Telegram' : 'WhatsApp';
+  const configured = cfg.channel === 'telegram' ? (cfg.tg_token && cfg.tg_chatid) : (cfg.phone && cfg.apikey);
+
+  if (!configured) setBox('config', '⚠️ Falta configurar. Abre Configuración y elige WhatsApp o Telegram.', 'warn');
+  else if (cfg.enabled === false) setBox('config', '⏸️ Avisos APAGADOS (' + channel + ').', 'warn');
+  else if (st.lastError) setBox('config', '❌ Último envío falló: ' + st.lastError, 'bad');
+  else setBox('config', '✅ Avisos activos por ' + channel + '.', 'ok');
+
+  if (st.lastScanAt && Date.now() - st.lastScanAt < 3 * 60 * 1000) {
+    setBox('watch', '👀 Vigilando ' + st.threads + ' chats (' + (st.unread || 0) + ' sin leer, ' +
+      (st.marketplace || 0) + ' de Marketplace). Revisado ' + ago(st.lastScanAt) + '.', 'ok');
+  } else {
+    setBox('watch', '⚠️ No veo tu lista de chats. Pulsa "Abrir mis chats de Facebook" y deja esa pestaña abierta.', 'warn');
+  }
+  document.getElementById('last').textContent = st.lastAlertAt
+    ? 'Último aviso: ' + (st.lastAlertName || '') + ', ' + ago(st.lastAlertAt) + '.'
+    : '';
+}
+
+document.getElementById('test').addEventListener('click', async () => {
+  const btn = document.getElementById('test');
+  const out = document.getElementById('result');
+  btn.disabled = true;
+  out.className = 'result';
+  out.textContent = '⏳ Enviando prueba…';
+  try {
+    const r = await chrome.runtime.sendMessage({ type: 'MN_TEST' });
+    out.textContent = (r && r.ok ? '✅ ' : '❌ ') + ((r && r.message) || 'Sin respuesta.');
+    out.className = 'result ' + (r && r.ok ? 'ok' : 'bad');
+  } catch (e) {
+    out.textContent = '❌ No se pudo pedir la prueba: ' + e;
+    out.className = 'result bad';
+  }
+  btn.disabled = false;
+  refresh();
+});
+
+document.getElementById('openInbox').addEventListener('click', async () => {
+  // Reutiliza una pestaña de chats si ya hay una; si no, la abre fijada.
+  const tabs = await chrome.tabs.query({ url: 'https://www.facebook.com/messages/*' });
+  if (tabs.length) {
+    await chrome.tabs.update(tabs[0].id, { active: true });
+    await chrome.windows.update(tabs[0].windowId, { focused: true });
+  } else {
+    await chrome.tabs.create({ url: INBOX_URL, pinned: true });
+  }
+  window.close();
+});
+
+document.getElementById('openOptions').addEventListener('click', () => {
+  chrome.runtime.openOptionsPage();
+  window.close();
+});
+
+refresh();

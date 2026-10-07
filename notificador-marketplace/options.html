@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Configuración — Notificador Marketplace</title>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body class="options">
+<h1>🔔 Notificador Marketplace — Configuración</h1>
+
+<h2>1. Elige cómo te aviso</h2>
+<div class="row">
+  <label class="inline"><input type="radio" name="channel" value="whatsapp" checked> WhatsApp (con CallMeBot, gratis)</label>
+  <label class="inline"><input type="radio" name="channel" value="telegram"> Telegram (con tu propio bot, gratis)</label>
+</div>
+
+<div id="secWhatsapp">
+<h3>WhatsApp — se hace una sola vez</h3>
+<ol>
+  <li>En tu teléfono, agrega a tus contactos el número del bot de CallMeBot: <b>+34 623 75 84 18</b> (ponle de nombre "CallMeBot").
+    <div class="hint">CallMeBot cambia este número de vez en cuando. Si no te responde, mira el número vigente en
+      <b>callmebot.com/blog/free-api-whatsapp-messages</b>.</div></li>
+  <li>Por WhatsApp envíale exactamente este mensaje:<br><code>I allow callmebot to send me messages</code></li>
+  <li>Te responde con tu <b>APIKEY</b> (un número). Pégala abajo. Si no llega en 2 minutos, CallMeBot pide reintentar en 24 h.</li>
+</ol>
+<label>Tu número de WhatsApp (con código de país, sin + ni espacios)
+  <input type="text" id="phone" inputmode="numeric" autocomplete="off" placeholder="Ej. EE. UU.: 12816027044 · Venezuela: 584121234567">
+  <div class="hint">Tiene que ser el mismo número desde donde le escribiste al bot.</div>
+</label>
+<label>Tu APIKEY de CallMeBot
+  <input type="password" id="apikey" autocomplete="off" placeholder="Ej. 123456">
+</label>
+<p class="hint">Es gratis para uso personal y solo sirve para mandarte mensajes a ti mismo. CallMeBot es un servicio de terceros, no de Meta: no compartas tu APIKEY.</p>
+</div>
+
+<div id="secTelegram" hidden>
+<h3>Telegram — se hace una sola vez</h3>
+<ol>
+  <li>Instala <b>Telegram</b> en tu teléfono y crea tu cuenta.</li>
+  <li>Busca <b>@BotFather</b>, escríbele <code>/newbot</code>, ponle un nombre (ej. "Avisos Marketplace") y un usuario terminado en <i>bot</i> (ej. avisos_marketplace_bot). Te responde con el <b>token</b>: guárdalo.</li>
+  <li>Busca tu bot por su usuario y pulsa <b>Iniciar</b> (o escríbele "hola"). Sin esto, el bot no puede escribirte.</li>
+  <li>Busca <b>@userinfobot</b>, escríbele cualquier cosa y te responde con tu <b>ID</b> (un número).</li>
+</ol>
+<label>Token de tu bot
+  <input type="password" id="tg_token" autocomplete="off" placeholder="Ej. 123456789:ABCdefGhIJKlmNoPQRstuVWxyZ">
+</label>
+<label>Tu ID de Telegram
+  <input type="text" id="tg_chatid" inputmode="numeric" autocomplete="off" placeholder="Ej. 987654321">
+</label>
+</div>
+
+<h2>2. Opciones</h2>
+<label class="inline"><input type="checkbox" id="enabled" checked> Avisos activados</label>
+<label class="inline"><input type="checkbox" id="marketplaceOnly"> Avisar <b>solo</b> de chats de Marketplace</label>
+<div class="hint">Apagado (recomendado) te avisa de cualquier chat nuevo, así no se te escapa ningún comprador si Facebook cambia su diseño y deja de marcar cuáles son de Marketplace.</div>
+<label class="inline"><input type="checkbox" id="pcNotify" checked> Mostrar también una notificación en el PC</label>
+
+<div class="row">
+  <button id="save">Guardar</button>
+  <button id="test" class="secondary">Guardar y probar aviso</button>
+</div>
+<div id="status" class="result" role="status" aria-live="polite"></div>
+
+<h2>3. Déjalo vigilando</h2>
+<ol>
+  <li>Abre <b>facebook.com/messages</b> en Chrome (o pulsa el botón de abajo) con tu sesión iniciada, y deja esa pestaña abierta. Puedes fijarla y minimizar la ventana.</li>
+  <li>Recomendado: en <code>chrome://settings/performance</code>, en "Mantener siempre activos estos sitios", agrega <code>facebook.com</code>.</li>
+  <li>El PC debe quedar encendido y sin suspenderse, con Chrome abierto.</li>
+</ol>
+<button id="openInbox" class="secondary">Abrir mis chats de Facebook</button>
+
+<script src="options.js"></script>
+</body>
+</html>

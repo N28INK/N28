@@ -1,0 +1,113 @@
+NOTIFICADOR MARKETPLACE v0.5 — LÉEME
+=====================================
+
+¿Qué hace?
+----------
+Esta extensión de Chrome vigila tus chats de Facebook (facebook.com/messages)
+en el PC y, cuando un cliente te escribe (por ejemplo desde Marketplace), te
+manda un aviso a tu TELÉFONO por WhatsApp o Telegram con quién escribió, qué
+dijo y un enlace para responder. También muestra una notificación en el PC.
+
+¿Cómo se instala? (5 minutos)
+-----------------------------
+1. Descomprime el .zip. Queda una carpeta "notificador-marketplace".
+2. En el PC, abre Chrome y ve a:  chrome://extensions
+3. Activa arriba a la derecha "Modo de desarrollador".
+4. Pulsa "Cargar descomprimida" y elige la carpeta "notificador-marketplace".
+   Se abre sola la página de Configuración.
+5. Fija el icono: pieza de rompecabezas (🧩) junto a la barra de direcciones →
+   chincheta junto a "Notificador Marketplace".
+
+Canal WHATSAPP (CallMeBot, gratis)
+----------------------------------
+1. En tu TELÉFONO agrega a tus contactos el número del bot de CallMeBot:
+       +34 623 75 84 18   (ponle de nombre "CallMeBot")
+   OJO: CallMeBot cambia este número de vez en cuando. Si no te responde,
+   mira el número vigente en:
+       https://www.callmebot.com/blog/free-api-whatsapp-messages/
+2. Por WhatsApp envíale exactamente este mensaje:
+       I allow callmebot to send me messages
+3. El bot te responde con tu APIKEY (un número). Si no llega en 2 minutos,
+   CallMeBot pide volver a intentarlo pasadas 24 horas.
+4. En la Configuración de la extensión elige "WhatsApp", pega tu número
+   (con código de país, sin + ni espacios; EE. UU.: 1 + 10 dígitos, ej.
+   12815551234) y tu APIKEY → "Guardar y probar aviso".
+   Debe llegarte el mensaje de prueba en segundos.
+
+Canal TELEGRAM (alternativa, gratis y muy estable)
+--------------------------------------------------
+1. Instala Telegram en tu teléfono y crea tu cuenta.
+2. Busca @BotFather, escríbele /newbot, ponle un nombre y un usuario que
+   termine en "bot". Te responde con el token: guárdalo.
+3. Busca tu bot por su usuario y pulsa "Iniciar" (o escríbele "hola").
+4. Busca @userinfobot, escríbele y te responde con tu ID (un número).
+5. En la Configuración elige "Telegram", pega el token y tu ID →
+   "Guardar y probar aviso".
+
+Déjalo vigilando
+----------------
+- Abre facebook.com/messages en Chrome con tu sesión iniciada (o pulsa
+  "Abrir mis chats de Facebook" en el icono de la extensión) y DEJA ESA
+  PESTAÑA ABIERTA. Puedes fijarla y minimizar la ventana.
+  Importante: la extensión lee la lista de chats que se ve en esa página.
+  Con solo el inicio de Facebook abierto (sin la lista de chats) no puede
+  ver los mensajes. Desde abril de 2026 messenger.com ya no existe y
+  redirige a facebook.com/messages.
+- Recomendado: en chrome://settings/performance, en "Mantener siempre
+  activos estos sitios", agrega facebook.com. (La extensión además le pide
+  a Chrome que no descargue esa pestaña.)
+- El PC tiene que quedar ENCENDIDO, sin suspenderse, con Chrome abierto.
+  Si cierras Chrome o el PC se duerme, no avisa.
+- Haz clic en el icono de la extensión para ver si está vigilando:
+  "Vigilando N chats … Revisado hace X s". Si dice "No veo tu lista de
+  chats", abre facebook.com/messages. Si pasan 10 minutos sin ver la lista,
+  también te sale una notificación en el PC.
+
+Cómo decide cuándo avisar
+-------------------------
+- Solo avisa de mensajes NUEVOS y SIN LEER, una vez por mensaje.
+- Al abrir la lista de chats, los chats viejos que ya estaban sin leer se
+  memorizan sin avisar (para no mandarte 20 avisos de golpe).
+- Si el cliente manda varios mensajes seguidos, avisa una vez y, si pasan
+  2 minutos y sigue sin leer, avisa del último.
+- No avisa del chat que tienes abierto en pantalla en ese momento, ni de
+  tus propias respuestas.
+- La opción "Avisar solo de chats de Marketplace" viene APAGADA: así te
+  avisa de cualquier chat nuevo y no se te escapa ningún comprador. Si la
+  enciendes, solo avisa de los chats que Facebook muestra como de
+  Marketplace ("Nombre · Artículo"). Si con la opción encendida dejan de
+  llegarte avisos, apágala.
+
+Límites honestos
+----------------
+- La extensión lee la página de Facebook; no usa ninguna API oficial de
+  Meta (no existe una para esto). Si Facebook cambia su diseño puede dejar
+  de detectar mensajes: el icono de la extensión te lo mostrará
+  ("No veo tu lista de chats" o "0 sin leer" cuando sí tienes sin leer).
+- CallMeBot es gratis para uso personal, pero es de un tercero, no de Meta.
+  No le des tu APIKEY a nadie. Si CallMeBot falla, prueba Telegram.
+- Tus datos (número, APIKEY, token) se guardan solo en este Chrome.
+
+Cambios v0.5 (auditoría)
+------------------------
+- El número de CallMeBot de las instrucciones estaba desactualizado: ahora
+  es +34 623 75 84 18 (con enlace para comprobarlo).
+- Cada envío correcto por WhatsApp se marcaba como "fallido" (CallMeBot
+  responde "Message queued", no "Message sent"): corregido.
+- La hora del chat ("5 min", "1 h") se tomaba como parte del mensaje y
+  provocaba avisos repetidos cada 2 minutos: ahora se quita.
+- El nombre en negrita se tomaba como "sin leer" y provocaba avisos falsos,
+  incluso de tus propias respuestas: corregido.
+- Avisos dobles cuando el content script y el despertador revisaban a la
+  vez: ahora se procesan en cola.
+- Si tenías Facebook en primer plano (aunque fuera el inicio), no avisaba
+  nunca de ese mensaje: ahora solo se omite el chat que tienes abierto.
+- "Probar aviso" desde Configuración podía usar los datos viejos y nunca
+  mostraba el resultado: ahora guarda primero y muestra si funcionó.
+- El despertador se reiniciaba cada vez que el service worker arrancaba.
+- La memoria de chats crecía sin límite: ahora se limpia sola.
+- Se quitó el permiso "tabs" (Chrome mostraba "leer tu historial").
+- Popup con estado real (cuántos chats ve, último aviso, último error),
+  notificación en el PC con clic para abrir el chat, enlace al chat en el
+  aviso del teléfono, validación del número/APIKEY/token, contraseñas
+  ocultas en la Configuración.
