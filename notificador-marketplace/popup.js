@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.5 — popup.js */
+/* Notificador Marketplace v0.7 — popup.js */
 'use strict';
 
 const INBOX_URL = 'https://www.facebook.com/messages/';
@@ -55,7 +55,12 @@ document.getElementById('test').addEventListener('click', async () => {
     out.className = 'result bad';
   }
   btn.disabled = false;
-  refresh();
+  document.getElementById('openDiag').addEventListener('click', () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL('options.html#diag') });
+  window.close();
+});
+
+refresh();
 });
 
 document.getElementById('openInbox').addEventListener('click', async () => {
@@ -72,6 +77,11 @@ document.getElementById('openInbox').addEventListener('click', async () => {
 
 document.getElementById('openOptions').addEventListener('click', () => {
   chrome.runtime.openOptionsPage();
+  window.close();
+});
+
+document.getElementById('openDiag').addEventListener('click', () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL('options.html#diag') });
   window.close();
 });
 

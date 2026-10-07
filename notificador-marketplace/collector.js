@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.5 — collector.js
+/* Notificador Marketplace v0.7 — collector.js
  * Lee la lista de chats que se ve en la página (facebook.com/messages).
  * Lo cargan DOS caminos que comparten el mismo "mundo aislado" de la pestaña:
  *   - el content script (content_scripts en manifest.json), cada pocos segundos;
@@ -14,8 +14,8 @@
   const DAY = '(?:lun|lunes|mar|martes|mi[ée]|mi[ée]rcoles|jue|jueves|vie|viernes|s[áa]b|s[áa]bado|dom|domingo|mon|monday|tue|tuesday|wed|wednesday|thu|thursday|fri|friday|sat|saturday|sun|sunday)\\.?';
   const TIME_RE = new RegExp(
     '^(?:' + [
-      '\\d+\\s*(?:s|seg|m|min|mins|h|hr|hrs|d|w|sem|mo|y|a)\\.?',
-      '\\d+\\s*(?:segundos?|minutos?|horas?|d[ií]as?|semanas?|mes(?:es)?|a[ñn]os?|seconds?|minutes?|hours?|days?|weeks?|months?|years?)',
+      '(?:hace\\s+)?\\d+\\s*(?:s|seg|m|min|mins|h|hr|hrs|d|w|sem|mo|y|a)\\.?',
+      '(?:hace\\s+)?(?:\\d+|un|una)\\s*(?:segundos?|minutos?|horas?|d[ií]as?|semanas?|mes(?:es)?|a[ñn]os?|seconds?|minutes?|hours?|days?|weeks?|months?|years?)',
       'ahora|justo ahora|just now|now|ayer|yesterday',
       DAY,
       '\\d{1,2}\\s+(?:de\\s+)?' + MONTH + '(?:\\s+\\d{2,4})?',
@@ -26,7 +26,8 @@
   const NOISE_RE = /^(?:·|•|activ[oa] ahora|active now|en l[ií]nea|online|mensaje no le[ií]do|mensajes no le[ií]dos|unread message|unread messages|no le[ií]do|sin leer|unread)$/i;
   const UNREAD_TEXT_RE = /\bunread\b|no le[ií]d[oa]s?|sin leer/i;
   const UNREAD_LINE_RE = /^(?:mensajes? no le[ií]dos?|unread messages?|no le[ií]d[oa]|sin leer|unread)$/i;
-  const MINE_RE = /^(?:t[úu]|you|usted)\s*:/i;
+  // Lo último lo hiciste tú: no es un mensaje del cliente.
+  const MINE_RE = /^(?:(?:t[úu]|you|usted)\s*:|enviaste|you sent|reaccionaste|you reacted|t[úu] reaccionaste|le diste|you liked|anulaste|you unsent|eliminaste|you removed)/i;
   const BLUE_RE = /0,\s*132,\s*255|24,\s*119,\s*242|8,\s*102,\s*255|59,\s*89,\s*152|0,\s*100,\s*209/;
 
   if (typeof globalThis.mnLastCount !== 'number') globalThis.mnLastCount = 0;
@@ -40,7 +41,11 @@
     const parts = [];
     for (let line of lines) {
       // "Hola, ¿sigue disponible? · 5 min" → "Hola, ¿sigue disponible?"
-      line = line.replace(/\s*[·•]\s*([^·•]*)$/, (whole, tail) => (TIME_RE.test(tail.trim()) ? '' : whole)).trim();
+      line = line.replace(/\s*[·•]\s*([^·•]*)$/, (whole, tail) => {
+        const t = tail.trim();
+        // Hora conocida, o un final corto con números ("5 min", "12 sem.", "2d")
+        return TIME_RE.test(t) || (t.length <= 12 && /\d/.test(t)) ? '' : whole;
+      }).trim();
       if (!line || TIME_RE.test(line) || NOISE_RE.test(line)) continue;
       parts.push(line);
     }
@@ -86,6 +91,7 @@
       if (!text) continue;
       byId.set(tid, {
         tid: tid,
+        pos: byId.size, // 0 = primera fila de la lista (la más reciente)
         name: name,
         text: text,
         mine: MINE_RE.test(text),

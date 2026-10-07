@@ -24,3 +24,4 @@ button:disabled { opacity: .6; cursor: default; }
 body.options button { width: auto; padding: 10px 18px; font-size: 15px; margin-right: 8px; }
 ol li { margin-bottom: 8px; }
 code { background: #f0f2f5; padding: 2px 6px; }
+textarea { width: 100%; box-sizing: border-box; margin-top: 10px; font: 12px/1.4 monospace; }

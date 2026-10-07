@@ -1,4 +1,4 @@
-NOTIFICADOR MARKETPLACE v0.6 — LÉEME
+NOTIFICADOR MARKETPLACE v0.7 — LÉEME
 =====================================
 
 ¿Qué hace?
@@ -101,6 +101,27 @@ Límites honestos
 - CallMeBot es gratis para uso personal, pero es de un tercero, no de Meta.
   No le des tu APIKEY a nadie. Si CallMeBot falla, prueba Telegram.
 - Tus datos (número, APIKEY, token) se guardan solo en este Chrome.
+
+Si NO te llegan los avisos (pero sí la prueba)
+----------------------------------------------
+1. Comprueba que la pestaña abierta es facebook.com/messages (la lista de
+   chats a la izquierda), no el inicio de Facebook.
+2. Clic en el icono de la extensión → "No me llegan avisos (diagnóstico)"
+   → "Ver qué detecta" → "Copiar", y pégaselo a quien te da soporte.
+   Ahí se ve si la extensión lee tus chats y cómo los interpreta.
+3. Para probar: pide a alguien que te escriba DESPUÉS de abrir la pestaña
+   (los chats que ya estaban sin leer al abrirla no avisan), y no tengas
+   ese chat abierto en pantalla.
+
+Cambios v0.7 (no llegaban los avisos)
+-------------------------------------
+- La v0.6 solo avisaba si detectaba la marca de "sin leer" de Facebook
+  (punto azul o negrita). Esa marca depende del diseño de Facebook y en tu
+  cuenta podía no detectarse nunca. Ahora también avisa cuando un chat sube
+  a las primeras filas de la lista con un mensaje nuevo que no es tuyo.
+- Se reconocen más respuestas tuyas ("Enviaste una foto", "Reaccionaste…")
+  y más formatos de hora ("hace 2 min", "12 sem.").
+- Nuevo diagnóstico en la Configuración para ver qué detecta.
 
 Cambios v0.6 (ventana minimizada)
 ---------------------------------

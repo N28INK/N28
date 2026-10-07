@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.6 — service worker (background.js)
+/* Notificador Marketplace v0.7 — service worker (background.js)
  * Recibe la lista de chats (del content script o de su propio despertador de
  * 30 segundos, o del cambio de título de la pestaña) y, cuando hay un mensaje nuevo sin leer, te avisa al teléfono por
  * WhatsApp (CallMeBot) o Telegram, y también con una notificación en el PC.
@@ -14,6 +14,7 @@ const ALARM = 'mn-keepalive';
 const ALARM_MIN = 0.5;                       // revisar cada 30 s (mínimo que permite Chrome)
 const SCRIPT_TIMEOUT_MS = 10 * 1000;
 const TITLE_RESCAN_MS = 6 * 1000;
+const TOP_ROWS = 3;                          // filas de arriba de la lista = chats con actividad reciente
 const FB_URLS = ['https://www.facebook.com/*', 'https://www.messenger.com/*'];
 const INBOX_URL = 'https://www.facebook.com/messages/';
 const COOLDOWN_MS = 2 * 60 * 1000;          // máx. 1 aviso por chat cada 2 min
@@ -194,6 +195,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'MN_THREADS' && sender.tab && msg.scan) {
     enqueue(msg.scan);
     noteListPresence(true).catch(() => {});
+  } else if (msg.type === 'MN_DIAG') {
+    diagnose().then(sendResponse, (e) => sendResponse({ error: String(e) }));
+    return true;
   } else if (msg.type === 'MN_TEST') {
     handleTest().then(sendResponse, (e) => sendResponse({ ok: false, message: String(e) }));
     return true; // respuesta asíncrona
@@ -206,6 +210,49 @@ chrome.notifications.onClicked.addListener((id) => {
   else if (id.startsWith('mn-open-inbox')) chrome.tabs.create({ url: INBOX_URL, pinned: true });
   chrome.notifications.clear(id);
 });
+
+// Lo que la extensión ve ahora mismo, para encontrar fallos con el Facebook real.
+async function diagnose() {
+  const s = await getSettings();
+  const tabs = await chrome.tabs.query({ url: FB_URLS });
+  const out = {
+    version: chrome.runtime.getManifest().version,
+    canal: s.channel, activados: s.enabled, soloMarketplace: s.marketplaceOnly,
+    estado: (await chrome.storage.local.get('mn_status')).mn_status || {},
+    pestanas: []
+  };
+  for (const tab of tabs) {
+    const t = { url: (tab.url || '').replace(/\?.*$/, ''), titulo: tab.title, descargada: !!tab.discarded };
+    try {
+      const res = await withTimeout(chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: () => {
+          const links = document.querySelectorAll('a[href*="/t/"]');
+          const sample = Array.from(links).slice(0, 3).map((a) => ({
+            href: (a.getAttribute('href') || '').slice(0, 60),
+            texto: (a.innerText || '').slice(0, 160),
+            aria: (a.getAttribute('aria-label') || '').slice(0, 80)
+          }));
+          return {
+            visible: document.visibilityState, enlacesT: links.length, muestra: sample,
+            scan: typeof globalThis.mnCollect === 'function' ? globalThis.mnCollect() : 'sin lector'
+          };
+        }
+      }), SCRIPT_TIMEOUT_MS);
+      const r = res && res[0] && res[0].result;
+      if (r && r.scan && r.scan.threads) {
+        r.scan.threads = r.scan.threads.slice(0, 8).map((th) => ({
+          pos: th.pos, nombre: th.name, texto: th.text, sinLeer: th.unread, tuyo: th.mine, marketplace: th.isMarketplace
+        }));
+      }
+      t.pagina = r;
+    } catch (e) {
+      t.error = String(e && e.message ? e.message : e);
+    }
+    out.pestanas.push(t);
+  }
+  return out;
+}
 
 async function getSettings() {
   const s = await chrome.storage.local.get('mn_settings');
@@ -235,22 +282,36 @@ async function processScan(scan) {
     if (!th || !th.tid) continue;
     const prev = seen[th.tid] || {};
     // "handled" = último texto del que ya avisamos (o que decidimos no avisar).
-    const cur = { text: th.text, at: now, alertAt: prev.alertAt || 0, handled: prev.handled || '' };
+    const cur = {
+      text: th.text, at: now, alertAt: prev.alertAt || 0,
+      handled: prev.handled || '', pending: !!prev.pending
+    };
     seen[th.tid] = cur;
+    const changed = prev.text !== cur.text; // incluye chat nunca visto
+    if (changed) cur.pending = true;
 
-    if (th.mine) { cur.handled = ''; continue; } // respondiste tú: el próximo mensaje del cliente es nuevo
-    if (!th.unread || cur.text === cur.handled) continue;
+    if (th.mine) { cur.handled = ''; cur.pending = false; continue; } // respondiste tú
+    if (cur.text === cur.handled) { cur.pending = false; continue; }
+    // ¿Es un mensaje nuevo del cliente? Sirve cualquiera de las dos señales:
+    //  - Facebook lo marca "sin leer" (punto azul / negrita), o
+    //  - el texto cambió y el chat está arriba de la lista (los mensajes nuevos
+    //    suben el chat). La v0.6 dependía solo de la marca "sin leer", que
+    //    cambia con el diseño de Facebook, y por eso podía no avisar nunca.
+    const top = typeof th.pos === 'number' && th.pos < TOP_ROWS;
+    if (!th.unread && !(cur.pending && top)) { cur.pending = false; continue; }
     if (scan.warmup ||                            // lista recién abierta: no avisar de chats viejos
         th.tid === scan.openTid ||                // lo estás mirando ahora mismo
         (s.marketplaceOnly && !th.isMarketplace)) {
       cur.handled = cur.text;
+      cur.pending = false;
       continue;
     }
     // Varios mensajes seguidos del mismo chat: un aviso, y el resto queda
-    // pendiente hasta que pase el tiempo de espera (si sigue sin leer).
+    // pendiente hasta que pase el tiempo de espera.
     if (now - cur.alertAt < COOLDOWN_MS) continue;
     cur.alertAt = now;
     cur.handled = cur.text;
+    cur.pending = false;
     toAlert.push(th);
   }
 

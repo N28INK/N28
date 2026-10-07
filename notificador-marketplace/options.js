@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.5 — options.js */
+/* Notificador Marketplace v0.7 — options.js */
 'use strict';
 
 const DEFAULTS = {
@@ -90,6 +90,28 @@ $('test').addEventListener('click', async () => {
 
 $('openInbox').addEventListener('click', () => {
   chrome.tabs.create({ url: 'https://www.facebook.com/messages/', pinned: true });
+});
+
+$('runDiag').addEventListener('click', async () => {
+  $('diagOut').value = '⏳ Leyendo tus pestañas de Facebook…';
+  try {
+    const r = await chrome.runtime.sendMessage({ type: 'MN_DIAG' });
+    let hint = '';
+    if (!r.pestanas || !r.pestanas.length) hint = '⚠️ No hay ninguna pestaña de Facebook abierta.\n\n';
+    else if (!r.pestanas.some((t) => t.pagina && t.pagina.scan && t.pagina.scan.threads && t.pagina.scan.threads.length)) {
+      hint = '⚠️ Hay pestañas de Facebook pero no veo la lista de chats. Abre facebook.com/messages.\n\n';
+    }
+    $('diagOut').value = hint + JSON.stringify(r, null, 2);
+    $('copyDiag').disabled = false;
+  } catch (e) {
+    $('diagOut').value = 'Error: ' + e;
+  }
+});
+
+$('copyDiag').addEventListener('click', async () => {
+  await navigator.clipboard.writeText($('diagOut').value);
+  $('copyDiag').textContent = 'Copiado ✓';
+  setTimeout(() => { $('copyDiag').textContent = 'Copiar'; }, 1500);
 });
 
 document.querySelectorAll('input[name="channel"]').forEach((r) => r.addEventListener('change', toggleSections));
