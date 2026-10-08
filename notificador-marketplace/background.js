@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.13 — service worker (background.js)
+/* Notificador Marketplace v0.14 — service worker (background.js)
  * Recibe la lista de chats (del content script, de su propio despertador de
  * 30 segundos o del cambio de título de la pestaña) y, cuando hay un mensaje
  * nuevo sin leer, te avisa al teléfono por WhatsApp (CallMeBot) o Telegram,
@@ -902,19 +902,34 @@ const REPLY_HELP =
   '2. Escribe tu texto, o adjunta una foto (con o sin texto como pie), y envíalo.\n' +
   'La extensión lo escribe (o pega la foto) en ese chat de Facebook y te confirma.';
 
+// Nombre para el registro y las confirmaciones cuando el chat configurado es un
+// grupo (varias personas pueden contestar): "Juan", "@juanperez" o "alguien".
+function senderName(msg) {
+  const f = msg && msg.from;
+  if (!f) return 'alguien';
+  if (f.username) return '@' + f.username;
+  const n = [f.first_name, f.last_name].filter(Boolean).join(' ').trim();
+  return n || 'alguien';
+}
+
 async function handleTelegramMessage(msg, s) {
   const chatId = String(msg.chat && msg.chat.id);
   const fromId = String(msg.from && msg.from.id);
   const mine = String(s.tg_chatid).trim();
-  // Solo tu cuenta. Cualquier otra persona que le escriba al bot se ignora (sin responderle).
-  if (chatId !== mine || fromId !== mine || (msg.chat.type && msg.chat.type !== 'private')) {
+  const isGroup = !!(msg.chat && (msg.chat.type === 'group' || msg.chat.type === 'supergroup'));
+  // El chat configurado tiene que ser ESE (no otro). Si es tu chat privado, además
+  // tiene que ser TU cuenta la que escribe. Si en cambio pusiste ahí el ID de un
+  // GRUPO, se confía en que solo metiste gente de confianza: cualquiera que esté
+  // en ese grupo puede contestar (no hace falta que sea tu propia cuenta).
+  if (chatId !== mine || (!isGroup && fromId !== mine)) {
     const now = Date.now();
     if (now - lastStrangerLog > 10 * 60 * 1000) {
       lastStrangerLog = now;
-      await logEvent('reply', 'Ignoré un mensaje al bot de otra cuenta de Telegram (no es la tuya).');
+      await logEvent('reply', 'Ignoré un mensaje de otro chat de Telegram (no es el que configuraste).');
     }
     return;
   }
+  const who0 = isGroup ? senderName(msg) + ': ' : '';
   const photos = Array.isArray(msg.photo) && msg.photo.length ? msg.photo : null;
   const text = String((photos ? msg.caption : msg.text) || '').trim();
   if (!text && !photos) { await tgSay(s, 'Solo puedo enviar texto o una foto. Escribe tu respuesta, o adjunta una imagen (puedes ponerle texto como pie).', msg.message_id); return; }
@@ -923,7 +938,7 @@ async function handleTelegramMessage(msg, s) {
     if (text.startsWith('/')) { await tgSay(s, 'No conozco ese comando.\n\n' + REPLY_HELP, msg.message_id); return; }
   }
   if (Date.now() / 1000 - (msg.date || 0) > REPLY_MAX_AGE_S) {
-    await logEvent('reply', 'Ignoré un mensaje tuyo de Telegram con más de 30 minutos de antigüedad.');
+    await logEvent('reply', 'Ignoré un mensaje de Telegram (' + who0 + 'más de 30 minutos de antigüedad).');
     return;
   }
   if (text.length > REPLY_MAX_LEN) { await tgSay(s, 'Ese ' + (photos ? 'pie de foto' : 'mensaje') + ' es muy largo (máximo ' + REPLY_MAX_LEN + ' caracteres).', msg.message_id); return; }
@@ -944,7 +959,9 @@ async function handleTelegramMessage(msg, s) {
   const target = res.target;
   await markActive(target.tid);
   const who = '«' + shortText(target.name, 40) + '»';
-  await logEvent('reply', 'Tu ' + (photos ? 'foto' : 'respuesta') + ' de Telegram va al chat de ' + who + (text ? ': "' + shortText(text, 50) + '"' : '') + '.');
+  // En un grupo, quién contestó queda en el registro y en la confirmación (para
+  // que el equipo sepa quién le respondió a cuál comprador).
+  await logEvent('reply', who0 + (photos ? 'manda una foto' : 'responde') + ' al chat de ' + who + (text ? ': "' + shortText(text, 50) + '"' : '') + '.');
   const r = await queueReply(async (wasBusy) => {
     if (wasBusy) {
       await tgSay(s, '⏳ En cola para ' + who + ': contesto en cuanto termine la respuesta anterior…', msg.message_id);
@@ -953,13 +970,13 @@ async function handleTelegramMessage(msg, s) {
     return deliverReply(target, text, s, image);
   });
   if (r.ok && r.sent) {
-    await tgSay(s, '✅ ' + (photos ? 'Foto enviada' : 'Enviado') + ' a ' + who + (text ? ': «' + shortText(text, 120) + '»' : ''), msg.message_id);
+    await tgSay(s, who0 + '✅ ' + (photos ? 'Foto enviada' : 'Enviado') + ' a ' + who + (text ? ': «' + shortText(text, 120) + '»' : ''), msg.message_id);
     await logEvent('reply', (photos ? 'Foto enviada' : 'Respuesta enviada') + ' al chat de ' + who + '.');
   } else if (r.ok) {
-    await tgSay(s, '✍️ Lo dejé listo en el chat de ' + who + ' pero NO lo envié (tienes apagado "enviar automáticamente"). Pulsa Enter en el PC.', msg.message_id);
+    await tgSay(s, who0 + '✍️ Lo dejé listo en el chat de ' + who + ' pero NO lo envié (tienes apagado "enviar automáticamente"). Pulsa Enter en el PC.', msg.message_id);
     await logEvent('reply', (photos ? 'Foto dejada' : 'Respuesta escrita') + ' (sin enviar) en el chat de ' + who + '.');
   } else {
-    await tgSay(s, '❌ No pude ' + (photos ? 'mandar la foto a' : 'contestar a') + ' ' + who + ': ' + r.detail, msg.message_id);
+    await tgSay(s, who0 + '❌ No pude ' + (photos ? 'mandar la foto a' : 'contestar a') + ' ' + who + ': ' + r.detail, msg.message_id);
     await logEvent('reply', 'NO se pudo ' + (photos ? 'mandar la foto a' : 'contestar a') + ' ' + who + ' (' + (r.stage || '?') + '): ' + shortText(r.detail, 100));
   }
   await startReplyWindow(); // la conversación sigue: se sigue escuchando 10 min más

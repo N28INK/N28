@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.13 — replier.js
+/* Notificador Marketplace v0.14 — replier.js
  * Escribe (y envía) en un chat de Messenger un texto —y/o pega una foto— que TÚ
  * mandaste a mano en Telegram. Solo lo inyecta el background, en pestañas de
  * Facebook, cuando llega tu respuesta desde tu propio Telegram. No envía nada

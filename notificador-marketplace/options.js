@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.13 — options.js */
+/* Notificador Marketplace v0.14 — options.js */
 'use strict';
 
 const DEFAULTS = {
@@ -68,7 +68,7 @@ async function load() {
 function validate(cfg) {
   if (cfg.channel === 'telegram') {
     if (!/^\d+:[\w-]{20,}$/.test(cfg.tg_token)) return 'El token del bot no tiene el formato correcto (números, dos puntos y letras).';
-    if (!/^-?\d+$/.test(cfg.tg_chatid)) return 'Tu ID de Telegram debe ser solo números.';
+    if (!/^-?\d+$/.test(cfg.tg_chatid)) return 'El ID de Telegram debe ser solo números (el de un grupo empieza con signo menos).';
   } else {
     if (!/^\d{8,15}$/.test(cfg.phone)) return 'El número debe llevar código de país y solo números (8 a 15 dígitos), sin + ni espacios.';
     if (!/^\d{4,}$/.test(cfg.apikey)) return 'La APIKEY de CallMeBot debe ser solo números.';

@@ -1,4 +1,4 @@
-NOTIFICADOR MARKETPLACE v0.13 — LÉEME
+NOTIFICADOR MARKETPLACE v0.14 — LÉEME
 =====================================
 
 ¿Qué hace?
@@ -179,6 +179,26 @@ Si NO te llegan los avisos (pero sí la prueba)
 3. Para probar: pide a alguien que te escriba DESPUÉS de abrir la pestaña
    (los chats que ya estaban sin leer al abrirla no avisan), y no tengas
    ese chat abierto en pantalla.
+
+Cambios v0.14 (contestar en EQUIPO, desde un grupo de Telegram)
+-----------------------------------------------------------------
+- "Tu ID de Telegram" ahora también admite el ID de un GRUPO (empieza con signo
+  menos). Si pones un grupo: los avisos llegan ahí y CUALQUIERA que esté en ese
+  grupo puede contestar los chats (texto y/o foto), no solo tú.
+- El registro anota quién contestó cada chat (su nombre o @usuario de Telegram),
+  y la confirmación en el grupo también lo dice, para que el equipo sepa quién
+  ya atendió a cuál comprador.
+- Con tu ID personal (no un grupo) todo sigue exactamente igual que antes: solo
+  tu cuenta puede contestar.
+- Advertencia: dentro de un grupo no hay forma de distinguir "vendedor de
+  confianza" de cualquier otro miembro — todos los que estén ahí pueden escribir
+  en tus chats de Facebook a tu nombre. Mete al bot al grupo e invita solo a
+  quien deba tener ese poder.
+- En un grupo, Telegram por defecto solo le pasa al bot los mensajes que
+  responden a uno de sus avisos (con «Responder») — así que ESE es el único
+  modo que funciona seguro ahí (es, de hecho, el que siempre se recomienda).
+  Si además quieres que valga escribir sin «Responder» cuando solo hay un chat
+  pendiente, habla con @BotFather → tu bot → /setprivacy → Disable.
 
 Cambios v0.13 (mandar fotos desde Telegram al chat)
 ----------------------------------------------------

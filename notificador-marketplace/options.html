@@ -44,9 +44,16 @@
 <label>Token de tu bot
   <input type="password" id="tg_token" autocomplete="off" placeholder="Ej. 123456789:ABCdefGhIJKlmNoPQRstuVWxyZ">
 </label>
-<label>Tu ID de Telegram
-  <input type="text" id="tg_chatid" inputmode="numeric" autocomplete="off" placeholder="Ej. 987654321">
+<label>Tu ID de Telegram (o el ID de un grupo)
+  <input type="text" id="tg_chatid" inputmode="numeric" autocomplete="off" placeholder="Ej. 987654321 (o -1001234567890 para un grupo)">
 </label>
+<div class="hint">
+  Si pones aquí tu ID personal, solo tu cuenta puede contestar. Si en cambio pones el ID de un
+  <b>grupo</b> (empieza con signo menos), los avisos llegan a ese grupo y <b>cualquiera que esté en él</b>
+  puede contestar los chats (y adjuntar fotos) — el registro anota quién contestó cada uno. Mete al bot
+  al grupo primero y solo invita gente de confianza: no hay forma de distinguir compradores de vendedores
+  dentro del grupo, es todo o nada.
+</div>
 </div>
 
 <h2>2. Opciones</h2>
@@ -66,7 +73,7 @@
 <div class="hint">
   Tú escribes a mano en Telegram (o adjuntas una foto, con o sin texto como pie); la extensión lo pone en el chat de Messenger. No hay botones ni respuestas automáticas.<br>
   <b>Cómo:</b> en Telegram mantén pulsado el aviso del chat → <b>Responder</b> → escribe tu texto y/o adjunta una foto → enviar. Te confirma con ✅.<br>
-  Necesita una pestaña de Facebook abierta y solo funciona con Telegram. Solo obedece a tu cuenta de Telegram (la del ID de arriba).<br>
+  Necesita una pestaña de Facebook abierta y solo funciona con Telegram. Solo obedece al chat de arriba (tu cuenta personal, o todo el grupo si pusiste un ID de grupo).<br>
   Si usas varios perfiles de Chrome, usa un bot distinto en cada uno: un bot solo puede ser leído por un programa a la vez.<br>
   La extensión lo escribe letra por letra, como una persona. Si contestas varios chats seguidos, espera su turno en cada uno.
   Mientras sigues una conversación (le contestaste hace poco desde aquí), las respuestas del comprador te llegan completas
