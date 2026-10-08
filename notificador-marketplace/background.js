@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.12 — service worker (background.js)
+/* Notificador Marketplace v0.13 — service worker (background.js)
  * Recibe la lista de chats (del content script, de su propio despertador de
  * 30 segundos o del cambio de título de la pestaña) y, cuando hay un mensaje
  * nuevo sin leer, te avisa al teléfono por WhatsApp (CallMeBot) o Telegram,
@@ -655,6 +655,7 @@ const REPLY_MAX_LEN = 1500;
 const REPLY_PER_MIN = 5;
 const REPLY_PER_HOUR = 40;
 const MAX_TARGETS = 60;
+const REPLY_MAX_IMAGE_BYTES = 8 * 1024 * 1024; // no todas las fotos de Telegram bajan comprimidas
 
 let pollBusy = false;
 let pollLoopOn = false;
@@ -686,6 +687,40 @@ async function tgApi(s, method, payload, timeoutMs) {
     return { status: res.status, json: json };
   } catch (e) {
     return { status: 0, json: null, error: String(e && e.message ? e.message : e) };
+  }
+}
+
+// Baja una foto que TÚ mandaste al bot de Telegram, para pegarla en el chat de
+// Facebook. Telegram guarda los archivos un rato bajo una URL propia (getFile);
+// se descarga aquí (el service worker sí puede) y se manda a la pestaña como
+// un data: URL, porque el content script no puede pedirle nada a Telegram.
+async function tgFileUrl(s, fileId) {
+  const r = await tgApi(s, 'getFile', { file_id: fileId }, 15000);
+  if (!r.json || !r.json.ok || !r.json.result || !r.json.result.file_path) return null;
+  return 'https://api.telegram.org/file/bot' + String(s.tg_token).trim() + '/' + r.json.result.file_path;
+}
+
+function bytesToBase64(bytes) {
+  let binary = '';
+  const CHUNK = 0x8000; // de a trozos: con la foto entera, String.fromCharCode se queda sin pila
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
+}
+
+async function downloadTelegramPhoto(s, fileId) {
+  const url = await tgFileUrl(s, fileId);
+  if (!url) return { error: 'Telegram no me dio la foto (el archivo puede haber expirado; vuelve a mandarla).' };
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(20000) });
+    if (!res.ok) return { error: 'Telegram respondió HTTP ' + res.status + ' al pedir la foto.' };
+    const buf = await res.arrayBuffer();
+    if (buf.byteLength > REPLY_MAX_IMAGE_BYTES) return { error: 'Esa foto es demasiado grande.' };
+    const mime = res.headers.get('content-type') || 'image/jpeg';
+    return { dataUrl: 'data:' + mime + ';base64,' + bytesToBase64(new Uint8Array(buf)), mime: mime };
+  } catch (e) {
+    return { error: 'No pude descargar la foto de Telegram: ' + shortText(e && e.message ? e.message : e, 80) };
   }
 }
 
@@ -864,8 +899,8 @@ async function replyAllowed() {
 const REPLY_HELP =
   'Cómo contestar un chat desde aquí:\n' +
   '1. Mantén pulsado el aviso del chat y elige «Responder».\n' +
-  '2. Escribe tu texto y envíalo.\n' +
-  'La extensión lo escribe en ese chat de Facebook y te confirma. Solo contesta lo que tú escribes.';
+  '2. Escribe tu texto, o adjunta una foto (con o sin texto como pie), y envíalo.\n' +
+  'La extensión lo escribe (o pega la foto) en ese chat de Facebook y te confirma.';
 
 async function handleTelegramMessage(msg, s) {
   const chatId = String(msg.chat && msg.chat.id);
@@ -880,41 +915,52 @@ async function handleTelegramMessage(msg, s) {
     }
     return;
   }
-  const text = String(msg.text || '').trim();
-  if (!text) { await tgSay(s, 'Solo puedo enviar texto. Escribe tu respuesta como mensaje de texto.', msg.message_id); return; }
-  if (/^\/(?:start|ayuda|help)\b/i.test(text)) { await tgSay(s, REPLY_HELP, msg.message_id); return; }
-  if (text.startsWith('/')) { await tgSay(s, 'No conozco ese comando.\n\n' + REPLY_HELP, msg.message_id); return; }
+  const photos = Array.isArray(msg.photo) && msg.photo.length ? msg.photo : null;
+  const text = String((photos ? msg.caption : msg.text) || '').trim();
+  if (!text && !photos) { await tgSay(s, 'Solo puedo enviar texto o una foto. Escribe tu respuesta, o adjunta una imagen (puedes ponerle texto como pie).', msg.message_id); return; }
+  if (!photos) {
+    if (/^\/(?:start|ayuda|help)\b/i.test(text)) { await tgSay(s, REPLY_HELP, msg.message_id); return; }
+    if (text.startsWith('/')) { await tgSay(s, 'No conozco ese comando.\n\n' + REPLY_HELP, msg.message_id); return; }
+  }
   if (Date.now() / 1000 - (msg.date || 0) > REPLY_MAX_AGE_S) {
     await logEvent('reply', 'Ignoré un mensaje tuyo de Telegram con más de 30 minutos de antigüedad.');
     return;
   }
-  if (text.length > REPLY_MAX_LEN) { await tgSay(s, 'Ese mensaje es muy largo (máximo ' + REPLY_MAX_LEN + ' caracteres).', msg.message_id); return; }
+  if (text.length > REPLY_MAX_LEN) { await tgSay(s, 'Ese ' + (photos ? 'pie de foto' : 'mensaje') + ' es muy largo (máximo ' + REPLY_MAX_LEN + ' caracteres).', msg.message_id); return; }
 
   const res = await resolveTarget(msg);
   if (res.error) { await tgSay(s, '⚠️ ' + res.error, msg.message_id); return; }
   const rate = await replyAllowed();
   if (!rate.ok) { await tgSay(s, '⏳ ' + rate.why, msg.message_id); return; }
 
+  let image = null;
+  if (photos) {
+    // La más grande es la última del arreglo (Telegram las manda de menor a mayor).
+    const dl = await downloadTelegramPhoto(s, photos[photos.length - 1].file_id);
+    if (dl.error) { await tgSay(s, '❌ ' + dl.error, msg.message_id); return; }
+    image = dl;
+  }
+
   const target = res.target;
   await markActive(target.tid);
   const who = '«' + shortText(target.name, 40) + '»';
-  await logEvent('reply', 'Tu respuesta de Telegram va al chat de ' + who + ': "' + shortText(text, 50) + '"');
+  await logEvent('reply', 'Tu ' + (photos ? 'foto' : 'respuesta') + ' de Telegram va al chat de ' + who + (text ? ': "' + shortText(text, 50) + '"' : '') + '.');
   const r = await queueReply(async (wasBusy) => {
     if (wasBusy) {
       await tgSay(s, '⏳ En cola para ' + who + ': contesto en cuanto termine la respuesta anterior…', msg.message_id);
-      await logEvent('reply', 'Respuesta a ' + who + ' puesta en cola (había otra en curso).');
+      await logEvent('reply', (photos ? 'Foto' : 'Respuesta') + ' a ' + who + ' puesta en cola (había otra en curso).');
     }
-    return deliverReply(target, text, s);
+    return deliverReply(target, text, s, image);
   });
   if (r.ok && r.sent) {
-    await tgSay(s, '✅ Enviado a ' + who + ': «' + shortText(text, 120) + '»', msg.message_id);
-    await logEvent('reply', 'Respuesta enviada al chat de ' + who + '.');
+    await tgSay(s, '✅ ' + (photos ? 'Foto enviada' : 'Enviado') + ' a ' + who + (text ? ': «' + shortText(text, 120) + '»' : ''), msg.message_id);
+    await logEvent('reply', (photos ? 'Foto enviada' : 'Respuesta enviada') + ' al chat de ' + who + '.');
   } else if (r.ok) {
-    await tgSay(s, '✍️ Lo escribí en el chat de ' + who + ' pero NO lo envié (tienes apagado "enviar automáticamente"). Pulsa Enter en el PC.', msg.message_id);
-    await logEvent('reply', 'Respuesta escrita (sin enviar) en el chat de ' + who + '.');
+    await tgSay(s, '✍️ Lo dejé listo en el chat de ' + who + ' pero NO lo envié (tienes apagado "enviar automáticamente"). Pulsa Enter en el PC.', msg.message_id);
+    await logEvent('reply', (photos ? 'Foto dejada' : 'Respuesta escrita') + ' (sin enviar) en el chat de ' + who + '.');
   } else {
-    await tgSay(s, '❌ No pude contestar a ' + who + ': ' + r.detail, msg.message_id);
-    await logEvent('reply', 'NO se pudo contestar a ' + who + ' (' + (r.stage || '?') + '): ' + shortText(r.detail, 100));
+    await tgSay(s, '❌ No pude ' + (photos ? 'mandar la foto a' : 'contestar a') + ' ' + who + ': ' + r.detail, msg.message_id);
+    await logEvent('reply', 'NO se pudo ' + (photos ? 'mandar la foto a' : 'contestar a') + ' ' + who + ' (' + (r.stage || '?') + '): ' + shortText(r.detail, 100));
   }
   await startReplyWindow(); // la conversación sigue: se sigue escuchando 10 min más
 }
@@ -936,12 +982,12 @@ function waitTabComplete(tabId, ms) {
   });
 }
 
-async function runReply(tabId, tid, text, send) {
+async function runReply(tabId, tid, text, send, image) {
   try {
     await withTimeout(chrome.scripting.executeScript({ target: { tabId: tabId }, files: ['replier.js'] }), SCRIPT_TIMEOUT_MS);
     const res = await withTimeout(chrome.scripting.executeScript({
       target: { tabId: tabId },
-      args: [{ tid: tid, text: text, send: send }],
+      args: [{ tid: tid, text: text, send: send, image: image || null }],
       func: (o) => globalThis.mnReply(o)
     }), 60 * 1000);
     return (res && res[0] && res[0].result) || { ok: false, stage: 'script', detail: 'la pestaña de Facebook no respondió.' };
@@ -950,7 +996,7 @@ async function runReply(tabId, tid, text, send) {
   }
 }
 
-async function deliverReply(target, text, s) {
+async function deliverReply(target, text, s, image) {
   let tabs = [];
   try { tabs = await chrome.tabs.query({ url: FB_URLS }); } catch (e) { tabs = []; }
   tabs = tabs.filter((t) => !t.discarded);
@@ -961,14 +1007,14 @@ async function deliverReply(target, text, s) {
   tabs.sort((a, b) => (/\/messages\b/.test(b.url || '') ? 1 : 0) - (/\/messages\b/.test(a.url || '') ? 1 : 0));
   const tab = tabs[0];
   const send = s.replySend !== false;
-  let r = await runReply(tab.id, target.tid, text, send);
+  let r = await runReply(tab.id, target.tid, text, send, image);
   if (!r.ok && r.stage === 'abrir') {
     // El chat no está en la lista de esa página: se abre por su dirección y se reintenta una vez.
     const loaded = waitTabComplete(tab.id, 25000);
     try { await chrome.tabs.update(tab.id, { url: 'https://www.facebook.com/messages/t/' + target.tid + '/' }); } catch (e) { /* ya se verá abajo */ }
     await loaded;
     await new Promise((res) => setTimeout(res, 2500));
-    r = await runReply(tab.id, target.tid, text, send);
+    r = await runReply(tab.id, target.tid, text, send, image);
   }
   return r;
 }

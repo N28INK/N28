@@ -1,4 +1,4 @@
-NOTIFICADOR MARKETPLACE v0.11 — LÉEME
+NOTIFICADOR MARKETPLACE v0.13 — LÉEME
 =====================================
 
 ¿Qué hace?
@@ -179,6 +179,17 @@ Si NO te llegan los avisos (pero sí la prueba)
 3. Para probar: pide a alguien que te escriba DESPUÉS de abrir la pestaña
    (los chats que ya estaban sin leer al abrirla no avisan), y no tengas
    ese chat abierto en pantalla.
+
+Cambios v0.13 (mandar fotos desde Telegram al chat)
+----------------------------------------------------
+- Ahora, además de texto, puedes adjuntar una FOTO en Telegram (con o sin texto
+  como pie) al responder un aviso: la extensión la pega en el chat de Facebook
+  (como si la copiaras y la pegaras) y, si escribiste texto, lo escribe debajo
+  antes de enviar. El bot te confirma "✅ Foto enviada a …".
+- Límite: una foto a la vez por respuesta, hasta 8 MB; si Telegram la comprimió
+  demasiado o no se pudo descargar, el bot te lo dice sin tocar nada en Facebook.
+  Pegar imágenes se probó contra una página simulada, no contra Facebook real:
+  si en tu cuenta no queda pegada la foto, avísame para ajustarlo.
 
 Cambios v0.12 (alternar chats sin fallos, avisos completos, escritura humana)
 ------------------------------------------------------------------------------

@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.12 — collector.js
+/* Notificador Marketplace v0.13 — collector.js
  * Lee la lista de chats que se ve en la página y el nombre de la cuenta de
  * Facebook que tiene la sesión iniciada. Sabe leer dos páginas:
  *   - facebook.com/messages (Messenger): filas con enlaces /t/<id>;
