@@ -1,4 +1,4 @@
-NOTIFICADOR MARKETPLACE v0.10 — LÉEME
+NOTIFICADOR MARKETPLACE v0.11 — LÉEME
 =====================================
 
 ¿Qué hace?
@@ -77,6 +77,39 @@ Déjalo vigilando
   chats", abre facebook.com/messages. Si pasan 10 minutos sin ver la lista,
   también te sale una notificación en el PC.
 
+Contestar desde Telegram (v0.11, opcional)
+------------------------------------------
+Tú escribes A MANO en Telegram y la extensión pone ese texto en el chat de
+Messenger de donde vino el mensaje. No hay botones ni respuestas automáticas.
+
+1. Actívalo: icono de la extensión -> "Activar respuestas desde Telegram"
+   (o Configuración -> "Contestar desde Telegram"). Solo con el canal Telegram.
+2. Te llega el aviso: "Nuevo mensaje… ¿Sigue disponible?".
+3. En Telegram mantén pulsado ese aviso -> "Responder" -> escribe tu texto
+   (por ejemplo "Sí claro, ¿buscas financiar?") -> enviar.
+4. La extensión abre ese chat en tu pestaña de Facebook, escribe el texto,
+   lo envía y te confirma en Telegram: "✅ Enviado a «Carlos»: «…»".
+- Si no usas "Responder" y solo hay UN chat avisado en los últimos 15 min, el
+  texto va a ese chat. Si hay varios, te pide que uses "Responder".
+- Si apagas "Enviar automáticamente", solo lo escribe en la caja del chat y
+  tú pulsas Enter en el PC.
+Seguridad:
+- Solo obedece a TU cuenta de Telegram (el ID que guardaste). Cualquier otra
+  persona que le escriba al bot es ignorada.
+- No escribe si ya hay un borrador en ese chat, ni si no logra abrir
+  exactamente ese chat. Máximo 5 respuestas por minuto y 40 por hora.
+- Lo que ya estaba pendiente en Telegram al activarlo se descarta.
+Requisitos y límites:
+- Necesita una pestaña de Facebook abierta (de preferencia facebook.com/messages).
+- Un bot solo puede ser leído por UN programa a la vez: si usas varios
+  perfiles de Chrome, usa un bot distinto en cada uno.
+- Facebook puede cambiar su caja de mensaje; si algo falla, el bot te dice en
+  qué paso (y el Registro lo anota). Pruébalo primero con un chat de prueba.
+- Es automatizar tu propia cuenta: Facebook podría marcarlo. Úsalo con
+  moderación, solo para contestar tus propios chats.
+- Las respuestas funcionan con chats de Messenger (no con la bandeja de
+  Marketplace en modo texto).
+
 Nombre de la cuenta de Facebook en los avisos (v0.8)
 ----------------------------------------------------
 Cada aviso al teléfono dice en qué cuenta de Facebook llegó el mensaje:
@@ -146,6 +179,10 @@ Si NO te llegan los avisos (pero sí la prueba)
 3. Para probar: pide a alguien que te escriba DESPUÉS de abrir la pestaña
    (los chats que ya estaban sin leer al abrirla no avisan), y no tengas
    ese chat abierto en pantalla.
+
+Cambios v0.11
+-------------
+- Contestar desde Telegram (ver arriba). Archivo nuevo: replier.js.
 
 Cambios v0.10 (a partir del registro de un usuario real)
 -------------------------------------------------------

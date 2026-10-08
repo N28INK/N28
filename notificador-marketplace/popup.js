@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.10 — popup.js */
+/* Notificador Marketplace v0.11 — popup.js */
 'use strict';
 
 const INBOX_URL = 'https://www.facebook.com/messages/';
@@ -30,6 +30,24 @@ async function refresh() {
   else setBox('config', '✅ Avisos activos por ' + channel + (cfg.marketplaceOnly ? ' (solo chats de Marketplace)' : '') + '.', 'ok');
 
   document.getElementById('mponly').hidden = cfg.marketplaceOnly !== true;
+  // Respuestas desde Telegram
+  const rbox = document.getElementById('reply');
+  const rtext = document.getElementById('replyText');
+  const ron = document.getElementById('replyOn');
+  rbox.hidden = cfg.channel !== 'telegram' || !configured;
+  if (!rbox.hidden) {
+    if (cfg.replyEnabled === true) {
+      rbox.className = 'box ' + (st.replyError ? 'bad' : 'ok');
+      rtext.textContent = st.replyError
+        ? '↩️ Respuestas desde Telegram: ⚠️ ' + st.replyError
+        : '↩️ Respuestas desde Telegram activadas (' + (cfg.replySend === false ? 'solo escribe en el chat' : 'se envían solas') + '). Responde a un aviso en Telegram para contestar.';
+      ron.hidden = true;
+    } else {
+      rbox.className = 'box';
+      rtext.textContent = '↩️ Puedes contestar los chats desde Telegram (texto que tú escribes).';
+      ron.hidden = false;
+    }
+  }
   const manual = String(cfg.accountName || '').trim();
   const found = d.mn_account && d.mn_account.name;
   if (manual) setBox('acct', '📘 Cuenta de Facebook en los avisos: ' + manual + ' (escrita por ti)', 'ok');
@@ -83,6 +101,15 @@ document.getElementById('test').addEventListener('click', async () => {
 });
 
 refresh();
+});
+
+document.getElementById('replyOn').addEventListener('click', async () => {
+  const d = await chrome.storage.local.get('mn_settings');
+  const cfg = d.mn_settings || {};
+  cfg.replyEnabled = true;
+  await chrome.storage.local.set({ mn_settings: cfg });
+  await chrome.storage.local.remove(['mn_tg_init', 'mn_reply_until']);
+  refresh();
 });
 
 document.getElementById('mpoff').addEventListener('click', async () => {

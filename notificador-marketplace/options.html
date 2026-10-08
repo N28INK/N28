@@ -60,6 +60,17 @@
 <div class="hint">Apagado (recomendado) te avisa de cualquier chat nuevo, así no se te escapa ningún comprador si Facebook cambia su diseño y deja de marcar cuáles son de Marketplace.</div>
 <label class="inline"><input type="checkbox" id="pcNotify" checked> Mostrar también una notificación en el PC</label>
 
+<h3>Contestar desde Telegram (opcional)</h3>
+<label class="inline"><input type="checkbox" id="replyEnabled"> Activar respuestas desde Telegram</label>
+<label class="inline"><input type="checkbox" id="replySend" checked> Enviar el texto al chat automáticamente (si lo apagas, solo lo escribe en el chat y tú pulsas Enter en el PC)</label>
+<div class="hint">
+  Tú escribes a mano en Telegram; la extensión pone ese texto en el chat de Messenger. No hay botones ni respuestas automáticas.<br>
+  <b>Cómo:</b> en Telegram mantén pulsado el aviso del chat → <b>Responder</b> → escribe tu texto → enviar. Te confirma con ✅.<br>
+  Necesita una pestaña de Facebook abierta y solo funciona con Telegram. Solo obedece a tu cuenta de Telegram (la del ID de arriba).<br>
+  Si usas varios perfiles de Chrome, usa un bot distinto en cada uno: un bot solo puede ser leído por un programa a la vez.
+</div>
+<div class="hint" id="replyHint"></div>
+
 <div class="row">
   <button id="save">Guardar</button>
   <button id="test" class="secondary">Guardar y probar aviso</button>

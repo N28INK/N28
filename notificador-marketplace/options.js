@@ -1,9 +1,10 @@
-/* Notificador Marketplace v0.10 — options.js */
+/* Notificador Marketplace v0.11 — options.js */
 'use strict';
 
 const DEFAULTS = {
   enabled: true, marketplaceOnly: false, pcNotify: true, channel: 'whatsapp',
-  phone: '', apikey: '', tg_token: '', tg_chatid: '', accountName: ''
+  phone: '', apikey: '', tg_token: '', tg_chatid: '', accountName: '',
+  replyEnabled: false, replySend: true
 };
 const $ = (id) => document.getElementById(id);
 
@@ -21,6 +22,14 @@ function toggleSections() {
 function status(msg, ok) {
   $('status').textContent = msg;
   $('status').className = 'result ' + (ok ? 'ok' : 'bad');
+}
+
+async function showReplyHint() {
+  const d = await chrome.storage.local.get('mn_status');
+  const err = d.mn_status && d.mn_status.replyError;
+  $('replyHint').textContent = !$('replyEnabled').checked ? ''
+    : (currentChannel() !== 'telegram' ? '⚠️ Las respuestas solo funcionan con el canal Telegram.'
+      : (err ? '⚠️ ' + err : '✅ Activadas: responde a un aviso en Telegram para contestar ese chat.'));
 }
 
 // Dice si la cuenta de Facebook ya se detectó sola o si hay que escribirla.
@@ -46,6 +55,9 @@ async function load() {
   $('enabled').checked = cfg.enabled !== false;
   $('marketplaceOnly').checked = cfg.marketplaceOnly === true;
   $('pcNotify').checked = cfg.pcNotify !== false;
+  $('replyEnabled').checked = cfg.replyEnabled === true;
+  $('replySend').checked = cfg.replySend !== false;
+  showReplyHint();
   const radio = document.querySelector('input[name="channel"][value="' + (cfg.channel === 'telegram' ? 'telegram' : 'whatsapp') + '"]');
   if (radio) radio.checked = true;
   toggleSections();
@@ -74,6 +86,8 @@ async function save() {
     enabled: $('enabled').checked,
     marketplaceOnly: $('marketplaceOnly').checked,
     pcNotify: $('pcNotify').checked,
+    replyEnabled: $('replyEnabled').checked,
+    replySend: $('replySend').checked,
     accountName: $('accountName').value.replace(/\s+/g, ' ').trim().slice(0, 80)
   };
   $('phone').value = cfg.phone;
@@ -82,7 +96,11 @@ async function save() {
     status('❌ ' + err, false);
     return false;
   }
+  const before = (await chrome.storage.local.get('mn_settings')).mn_settings || {};
   await chrome.storage.local.set({ mn_settings: cfg });
+  // Al activar las respuestas, lo que ya estaba pendiente en Telegram se descarta (no se ejecuta).
+  if (cfg.replyEnabled && !before.replyEnabled) await chrome.storage.local.remove(['mn_tg_init', 'mn_reply_until']);
+  showReplyHint();
   showAcctHint();
   status('✅ Guardado.', true);
   return true;
@@ -132,6 +150,7 @@ $('copyDiag').addEventListener('click', async () => {
 });
 
 $('accountName').addEventListener('input', showAcctHint);
+$('replyEnabled').addEventListener('change', showReplyHint);
 
 // ---- Registro de eventos ----
 async function showLog() {

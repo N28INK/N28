@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.10 — service worker (background.js)
+/* Notificador Marketplace v0.11 — service worker (background.js)
  * Recibe la lista de chats (del content script, de su propio despertador de
  * 30 segundos o del cambio de título de la pestaña) y, cuando hay un mensaje
  * nuevo sin leer, te avisa al teléfono por WhatsApp (CallMeBot) o Telegram,
@@ -10,7 +10,8 @@
 const TAG = '[MN-bg]';
 const DEFAULTS = {
   enabled: true, marketplaceOnly: false, pcNotify: true, channel: 'whatsapp',
-  phone: '', apikey: '', tg_token: '', tg_chatid: '', accountName: ''
+  phone: '', apikey: '', tg_token: '', tg_chatid: '', accountName: '',
+  replyEnabled: false, replySend: true
 };
 const ALARM = 'mn-keepalive';
 const ALARM_MIN = 0.5;                       // revisar cada 30 s (mínimo que permite Chrome)
@@ -74,6 +75,7 @@ chrome.runtime.onStartup.addListener(ensureAlarm);
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm && alarm.name === ALARM) {
     keepaliveScan().catch((e) => console.error(TAG, e));
+    replyTick().catch((e) => console.error(TAG, e));
   }
 });
 
@@ -310,6 +312,11 @@ async function diagnose() {
     canal: s.channel, activados: s.enabled, soloMarketplace: s.marketplaceOnly,
     estado: (await chrome.storage.local.get('mn_status')).mn_status || {},
     pcNotify: s.pcNotify,
+    respuestasDesdeTelegram: {
+      activadas: s.replyEnabled === true, enviarSolo: s.replySend !== false,
+      escuchandoHasta: (await chrome.storage.local.get('mn_reply_until')).mn_reply_until || 0,
+      chatsRecordados: Object.keys((await chrome.storage.local.get('mn_replies')).mn_replies || {}).length
+    },
     registro: ((await chrome.storage.local.get('mn_log')).mn_log || []).slice(-30).map((e) =>
       new Date(e.t).toLocaleTimeString('es') + ' [' + e.k + '] ' + e.m),
     cuenta: {
@@ -569,6 +576,8 @@ async function alertNewMessage(th, s) {
     'De: ' + th.name + '\n' +
     '"' + th.text + '"\n\n' +
     'Responder: ' + link;
+  const canReply = replyActive(s) && th.src !== 'texto' && /^\d+$/.test(String(th.tid));
+  const full = canReply ? text + '\n\n↩️ Para contestar desde aquí: mantén pulsado este mensaje y elige «Responder».' : text;
 
   // El teléfono es lo importante: la notificación del PC va aparte, sin esperarla,
   // para que si Windows/Chrome la retrasan o la bloquean no se retrase el aviso.
@@ -577,7 +586,11 @@ async function alertNewMessage(th, s) {
     notifyPC(id + Date.now(), 'Nuevo mensaje de ' + th.name, th.text);
   }
   const via = s.channel === 'telegram' ? 'Telegram' : 'WhatsApp';
-  const r = await sendNotification(text, s);
+  const r = await sendNotification(full, s);
+  if (r.ok && canReply) {
+    await rememberTarget(r.messageId, th);
+    await startReplyWindow();
+  }
   if (r.ok) {
     await setStatus({ lastAlertAt: Date.now(), lastListAlertAt: Date.now(), lastAlertName: th.name, lastError: '' });
     await logEvent('ok', 'Aviso enviado por ' + via + ': "' + shortText(th.name, 30) + '" — ' + shortText(th.text, 50));
@@ -588,6 +601,306 @@ async function alertNewMessage(th, s) {
       notifyPC('mn-error-' + Date.now(), 'No se pudo avisar a tu teléfono', r.message);
     }
   }
+}
+
+/* ------------------- respuestas desde Telegram -------------------
+ * Tú escribes A MANO en Telegram (con "Responder" sobre el aviso del chat) y la
+ * extensión escribe ese texto en ese chat de Messenger y lo envía.
+ *  - Nada se manda solo: no hay botones ni respuestas automáticas.
+ *  - Solo se obedecen mensajes de TU cuenta de Telegram (la del ID guardado).
+ *  - El bot lee tus mensajes con getUpdates (sin servidor). Solo un programa a
+ *    la vez puede leer un mismo bot.
+ */
+const REPLY_WINDOW_MS = 10 * 60 * 1000;   // tras un aviso, se escucha cada pocos segundos 10 min
+const REPLY_RECENT_MS = 15 * 60 * 1000;   // un texto sin "Responder" va al único chat avisado en 15 min
+const REPLY_MAX_AGE_S = 30 * 60;          // ignora mensajes de Telegram más viejos que 30 min
+const REPLY_MAX_LEN = 1500;
+const REPLY_PER_MIN = 5;
+const REPLY_PER_HOUR = 40;
+const MAX_TARGETS = 60;
+
+let pollBusy = false;
+let pollLoopOn = false;
+let replyUntil = 0;
+let lastStrangerLog = 0;
+let lastPollErrKey = '';
+let lastPollErrAt = 0;
+
+function validTg(s) {
+  return /^\d+:[\w-]+$/.test(String(s.tg_token || '').trim()) && /^-?\d+$/.test(String(s.tg_chatid || '').trim());
+}
+
+function replyActive(s) {
+  return s.enabled !== false && s.replyEnabled === true && s.channel === 'telegram' && validTg(s);
+}
+
+async function tgApi(s, method, payload, timeoutMs) {
+  const token = String(s.tg_token || '').trim();
+  try {
+    const res = await fetch('https://api.telegram.org/bot' + token + '/' + method, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload || {}),
+      signal: AbortSignal.timeout(timeoutMs || 20000)
+    });
+    const body = await res.text();
+    let json = null;
+    try { json = JSON.parse(body); } catch (e) { /* no era JSON */ }
+    return { status: res.status, json: json };
+  } catch (e) {
+    return { status: 0, json: null, error: String(e && e.message ? e.message : e) };
+  }
+}
+
+// Mensaje del bot para ti (confirmaciones y avisos de error). No es un aviso de chat.
+function tgSay(s, text, replyTo) {
+  return tgApi(s, 'sendMessage', {
+    chat_id: String(s.tg_chatid).trim(),
+    text: String(text).slice(0, 3500),
+    reply_to_message_id: replyTo || undefined,
+    allow_sending_without_reply: true,
+    disable_web_page_preview: true
+  }, 15000);
+}
+
+// Cada aviso de chat que sale por Telegram guarda a qué chat pertenece (por el id del mensaje del bot).
+async function rememberTarget(messageId, th) {
+  if (!messageId || !th || !/^\d+$/.test(String(th.tid))) return;
+  const d = await chrome.storage.local.get('mn_replies');
+  const map = d.mn_replies || {};
+  const now = Date.now();
+  map[String(messageId)] = { tid: String(th.tid), name: th.name, at: now };
+  const keep = Object.keys(map)
+    .filter((k) => now - map[k].at < 24 * 60 * 60 * 1000)
+    .sort((a, b) => map[b].at - map[a].at)
+    .slice(0, MAX_TARGETS);
+  const out = {};
+  keep.forEach((k) => { out[k] = map[k]; });
+  await chrome.storage.local.set({ mn_replies: out });
+}
+
+// Tras un aviso se escucha a Telegram con espera larga (respuesta casi inmediata) durante 10 min.
+async function startReplyWindow() {
+  replyUntil = Date.now() + REPLY_WINDOW_MS;
+  await chrome.storage.local.set({ mn_reply_until: replyUntil });
+  if (!pollLoopOn) pollLoop().catch((e) => console.error(TAG, e));
+}
+
+async function pollLoop() {
+  pollLoopOn = true;
+  try {
+    while (Date.now() < replyUntil) {
+      const s = await getSettings();
+      if (!replyActive(s)) break;
+      const t0 = Date.now();
+      await pollTelegram(25);
+      if (Date.now() - t0 < 1500) await new Promise((r) => setTimeout(r, 2500)); // por si falla o ya había otra lectura
+    }
+  } finally {
+    pollLoopOn = false;
+  }
+}
+
+// Cada 30 s (alarma): si hay una ventana abierta se sigue escuchando; si no, una lectura rápida.
+async function replyTick() {
+  const s = await getSettings();
+  if (!replyActive(s)) return;
+  const d = await chrome.storage.local.get('mn_reply_until');
+  if ((d.mn_reply_until || 0) > Date.now()) {
+    replyUntil = d.mn_reply_until;
+    if (!pollLoopOn) pollLoop().catch((e) => console.error(TAG, e));
+  } else {
+    await pollTelegram(0);
+  }
+}
+
+async function reportPollError(r) {
+  const j = r.json || {};
+  const desc = String(j.description || r.error || '');
+  let msg = '';
+  if (r.status === 409 && /webhook/i.test(desc)) msg = 'Este bot tiene un webhook activo (lo usa otro servicio): no puedo leer tus respuestas.';
+  else if (r.status === 409) msg = 'Otro programa (u otro perfil de Chrome) está leyendo este mismo bot. Usa un bot distinto por perfil.';
+  else if (r.status === 401 || r.status === 404) msg = 'Telegram rechazó el token del bot.';
+  else if (r.status === 0) return; // sin red un momento: se reintenta solo
+  else msg = 'Telegram respondió ' + r.status + ': ' + shortText(desc, 80);
+  const now = Date.now();
+  if (msg === lastPollErrKey && now - lastPollErrAt < 30 * 60 * 1000) return;
+  lastPollErrKey = msg;
+  lastPollErrAt = now;
+  await setStatus({ replyError: msg });
+  await logEvent('reply', 'No puedo leer tus respuestas de Telegram: ' + msg);
+}
+
+async function pollTelegram(timeoutSec) {
+  if (pollBusy) return;
+  const s = await getSettings();
+  if (!replyActive(s)) return;
+  pollBusy = true;
+  try {
+    const st = await chrome.storage.local.get(['mn_tg_offset', 'mn_tg_init']);
+    if (!st.mn_tg_init) {
+      // Primera vez: lo que ya estaba pendiente en Telegram se descarta, no se ejecuta.
+      const r = await tgApi(s, 'getUpdates', { offset: -1, timeout: 0, allowed_updates: ['message'] }, 15000);
+      if (r.json && r.json.ok) {
+        const last = (r.json.result || []).slice(-1)[0];
+        await chrome.storage.local.set({ mn_tg_init: true, mn_tg_offset: last ? last.update_id + 1 : 0 });
+        await setStatus({ replyError: '' });
+        await logEvent('reply', 'Respuestas desde Telegram activadas. Responde a un aviso para contestar ese chat.');
+      } else {
+        await reportPollError(r);
+      }
+      return;
+    }
+    const r = await tgApi(s, 'getUpdates', { offset: st.mn_tg_offset || 0, timeout: timeoutSec || 0, allowed_updates: ['message'] }, (timeoutSec || 0) * 1000 + 15000);
+    if (!r.json || !r.json.ok) { await reportPollError(r); return; }
+    if (lastPollErrKey) { lastPollErrKey = ''; await setStatus({ replyError: '' }); }
+    const updates = r.json.result || [];
+    if (!updates.length) return;
+    // Primero se anota hasta dónde se leyó: así un mensaje NUNCA se ejecuta dos veces.
+    await chrome.storage.local.set({ mn_tg_offset: Math.max.apply(null, updates.map((u) => u.update_id)) + 1 });
+    for (const u of updates) {
+      if (u.message) await handleTelegramMessage(u.message, s);
+    }
+  } finally {
+    pollBusy = false;
+  }
+}
+
+// ¿A qué chat va este mensaje tuyo de Telegram?
+async function resolveTarget(msg) {
+  const d = await chrome.storage.local.get('mn_replies');
+  const map = d.mn_replies || {};
+  if (msg.reply_to_message && msg.reply_to_message.message_id) {
+    const t = map[String(msg.reply_to_message.message_id)];
+    return t ? { target: t } : { error: 'No sé a qué chat corresponde ese mensaje (es muy viejo o no era un aviso de chat). Responde a un aviso reciente.' };
+  }
+  const now = Date.now();
+  const byTid = new Map();
+  Object.values(map)
+    .filter((t) => now - t.at < REPLY_RECENT_MS)
+    .sort((a, b) => a.at - b.at)
+    .forEach((t) => byTid.set(t.tid, t));
+  if (byTid.size === 1) return { target: Array.from(byTid.values())[0] };
+  if (byTid.size === 0) return { error: 'No hay ningún aviso reciente. Mantén pulsado el aviso del chat que quieres contestar y elige «Responder».' };
+  const names = Array.from(byTid.values()).map((t) => '«' + shortText(t.name, 25) + '»').join(', ');
+  return { error: 'Tienes varios chats pendientes (' + names + '). Mantén pulsado el aviso del chat al que quieres contestar y elige «Responder».' };
+}
+
+async function replyAllowed() {
+  const d = await chrome.storage.local.get('mn_reply_times');
+  const now = Date.now();
+  const times = (d.mn_reply_times || []).filter((t) => now - t < 60 * 60 * 1000);
+  const lastMin = times.filter((t) => now - t < 60 * 1000).length;
+  if (lastMin >= REPLY_PER_MIN) return { ok: false, why: 'Demasiados mensajes seguidos (máximo ' + REPLY_PER_MIN + ' por minuto). Espera un momento.' };
+  if (times.length >= REPLY_PER_HOUR) return { ok: false, why: 'Llegaste al límite de ' + REPLY_PER_HOUR + ' respuestas por hora.' };
+  times.push(now);
+  await chrome.storage.local.set({ mn_reply_times: times });
+  return { ok: true };
+}
+
+const REPLY_HELP =
+  'Cómo contestar un chat desde aquí:\n' +
+  '1. Mantén pulsado el aviso del chat y elige «Responder».\n' +
+  '2. Escribe tu texto y envíalo.\n' +
+  'La extensión lo escribe en ese chat de Facebook y te confirma. Solo contesta lo que tú escribes.';
+
+async function handleTelegramMessage(msg, s) {
+  const chatId = String(msg.chat && msg.chat.id);
+  const fromId = String(msg.from && msg.from.id);
+  const mine = String(s.tg_chatid).trim();
+  // Solo tu cuenta. Cualquier otra persona que le escriba al bot se ignora (sin responderle).
+  if (chatId !== mine || fromId !== mine || (msg.chat.type && msg.chat.type !== 'private')) {
+    const now = Date.now();
+    if (now - lastStrangerLog > 10 * 60 * 1000) {
+      lastStrangerLog = now;
+      await logEvent('reply', 'Ignoré un mensaje al bot de otra cuenta de Telegram (no es la tuya).');
+    }
+    return;
+  }
+  const text = String(msg.text || '').trim();
+  if (!text) { await tgSay(s, 'Solo puedo enviar texto. Escribe tu respuesta como mensaje de texto.', msg.message_id); return; }
+  if (/^\/(?:start|ayuda|help)\b/i.test(text)) { await tgSay(s, REPLY_HELP, msg.message_id); return; }
+  if (text.startsWith('/')) { await tgSay(s, 'No conozco ese comando.\n\n' + REPLY_HELP, msg.message_id); return; }
+  if (Date.now() / 1000 - (msg.date || 0) > REPLY_MAX_AGE_S) {
+    await logEvent('reply', 'Ignoré un mensaje tuyo de Telegram con más de 30 minutos de antigüedad.');
+    return;
+  }
+  if (text.length > REPLY_MAX_LEN) { await tgSay(s, 'Ese mensaje es muy largo (máximo ' + REPLY_MAX_LEN + ' caracteres).', msg.message_id); return; }
+
+  const res = await resolveTarget(msg);
+  if (res.error) { await tgSay(s, '⚠️ ' + res.error, msg.message_id); return; }
+  const rate = await replyAllowed();
+  if (!rate.ok) { await tgSay(s, '⏳ ' + rate.why, msg.message_id); return; }
+
+  const target = res.target;
+  const who = '«' + shortText(target.name, 40) + '»';
+  await logEvent('reply', 'Tu respuesta de Telegram va al chat de ' + who + ': "' + shortText(text, 50) + '"');
+  const r = await deliverReply(target, text, s);
+  if (r.ok && r.sent) {
+    await tgSay(s, '✅ Enviado a ' + who + ': «' + shortText(text, 120) + '»', msg.message_id);
+    await logEvent('reply', 'Respuesta enviada al chat de ' + who + '.');
+  } else if (r.ok) {
+    await tgSay(s, '✍️ Lo escribí en el chat de ' + who + ' pero NO lo envié (tienes apagado "enviar automáticamente"). Pulsa Enter en el PC.', msg.message_id);
+    await logEvent('reply', 'Respuesta escrita (sin enviar) en el chat de ' + who + '.');
+  } else {
+    await tgSay(s, '❌ No pude contestar a ' + who + ': ' + r.detail, msg.message_id);
+    await logEvent('reply', 'NO se pudo contestar a ' + who + ' (' + (r.stage || '?') + '): ' + shortText(r.detail, 100));
+  }
+  await startReplyWindow(); // la conversación sigue: se sigue escuchando 10 min más
+}
+
+function waitTabComplete(tabId, ms) {
+  return new Promise((resolve) => {
+    let done = false;
+    let tm = null;
+    const on = (id, info) => { if (id === tabId && info.status === 'complete') finish(); };
+    function finish() {
+      if (done) return;
+      done = true;
+      chrome.tabs.onUpdated.removeListener(on);
+      clearTimeout(tm);
+      resolve();
+    }
+    chrome.tabs.onUpdated.addListener(on);
+    tm = setTimeout(finish, ms);
+  });
+}
+
+async function runReply(tabId, tid, text, send) {
+  try {
+    await withTimeout(chrome.scripting.executeScript({ target: { tabId: tabId }, files: ['replier.js'] }), SCRIPT_TIMEOUT_MS);
+    const res = await withTimeout(chrome.scripting.executeScript({
+      target: { tabId: tabId },
+      args: [{ tid: tid, text: text, send: send }],
+      func: (o) => globalThis.mnReply(o)
+    }), 60 * 1000);
+    return (res && res[0] && res[0].result) || { ok: false, stage: 'script', detail: 'la pestaña de Facebook no respondió.' };
+  } catch (e) {
+    return { ok: false, stage: 'script', detail: 'no pude hablar con la pestaña de Facebook (' + shortText(e && e.message ? e.message : e, 60) + ').' };
+  }
+}
+
+async function deliverReply(target, text, s) {
+  let tabs = [];
+  try { tabs = await chrome.tabs.query({ url: FB_URLS }); } catch (e) { tabs = []; }
+  tabs = tabs.filter((t) => !t.discarded);
+  if (!tabs.length) {
+    return { ok: false, stage: 'pestaña', detail: 'no hay ninguna pestaña de Facebook abierta. Abre facebook.com/messages y vuelve a mandarlo.' };
+  }
+  // Mejor una pestaña que ya esté en Messenger.
+  tabs.sort((a, b) => (/\/messages\b/.test(b.url || '') ? 1 : 0) - (/\/messages\b/.test(a.url || '') ? 1 : 0));
+  const tab = tabs[0];
+  const send = s.replySend !== false;
+  let r = await runReply(tab.id, target.tid, text, send);
+  if (!r.ok && r.stage === 'abrir') {
+    // El chat no está en la lista de esa página: se abre por su dirección y se reintenta una vez.
+    const loaded = waitTabComplete(tab.id, 25000);
+    try { await chrome.tabs.update(tab.id, { url: 'https://www.facebook.com/messages/t/' + target.tid + '/' }); } catch (e) { /* ya se verá abajo */ }
+    await loaded;
+    await new Promise((res) => setTimeout(res, 2500));
+    r = await runReply(tab.id, target.tid, text, send);
+  }
+  return r;
 }
 
 async function notifyPC(id, title, message) {
@@ -663,7 +976,7 @@ async function sendTelegram(text, s) {
   if (r.error) return { ok: false, reason: 'network', message: 'Sin conexión con Telegram: ' + r.error };
   let json = null;
   try { json = JSON.parse(r.body); } catch (e) { /* respuesta no JSON */ }
-  if (json && json.ok === true) return { ok: true, message: '' };
+  if (json && json.ok === true) return { ok: true, message: '', messageId: json.result && json.result.message_id };
   let hint = '';
   if (r.status === 401 || r.status === 404) hint = ' (revisa el token del bot)';
   else if (r.status === 400 || r.status === 403) hint = ' (revisa tu ID y que le hayas escrito "hola" a tu bot)';
