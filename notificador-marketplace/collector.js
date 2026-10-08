@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.10 — collector.js
+/* Notificador Marketplace v0.12 — collector.js
  * Lee la lista de chats que se ve en la página y el nombre de la cuenta de
  * Facebook que tiene la sesión iniciada. Sabe leer dos páginas:
  *   - facebook.com/messages (Messenger): filas con enlaces /t/<id>;
@@ -12,7 +12,7 @@
  */
 (() => {
   'use strict';
-  if (globalThis.mnCollectVersion === 10) return;
+  if (globalThis.mnCollectVersion === 11) return;
 
   // Líneas que no son parte del mensaje: hora relativa, "Activo ahora", marcas de no leído…
   const MONTH = '(?:ene|enero|feb|febrero|mar|marzo|abr|abril|may|mayo|jun|junio|jul|julio|ago|agosto|sep|sept|septiembre|oct|octubre|nov|noviembre|dic|diciembre|jan|january|february|march|apr|april|june|july|aug|august|september|october|november|dec|december)\\.?';
@@ -159,7 +159,10 @@
       parts.push(line);
     }
     return {
-      text: parts.join(' ').replace(/\s+/g, ' ').trim().slice(0, 200),
+      // Hasta ~1500 caracteres: para que la respuesta del cliente llegue completa
+      // al bot de Telegram (antes se cortaba a 200). Telegram admite hasta 4096;
+      // el margen se usa para el resto del aviso (nombre, enlace, pie de "responder").
+      text: parts.join(' ').replace(/\s+/g, ' ').trim().slice(0, 1500),
       age: time,
       unreadHint: unreadHint
     };
@@ -318,5 +321,5 @@
       accountSource: acct ? acct.source : ''
     };
   };
-  globalThis.mnCollectVersion = 10;
+  globalThis.mnCollectVersion = 11;
 })();

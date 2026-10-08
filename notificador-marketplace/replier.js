@@ -1,20 +1,22 @@
-/* Notificador Marketplace v0.11 — replier.js
+/* Notificador Marketplace v0.12 — replier.js
  * Escribe (y envía) en un chat de Messenger un texto que TÚ escribiste a mano en
  * Telegram. Solo lo inyecta el background, en pestañas de Facebook, cuando
  * llega tu respuesta desde tu propio Telegram. No envía nada por su cuenta.
  *
  * Pasos, y cada uno se comprueba antes de seguir:
  *   1. abrir el chat correcto (por su enlace /t/<id>) y confirmar que la dirección cambió;
- *   2. encontrar la caja de mensaje y confirmar que está VACÍA (no pisa borradores);
- *   3. escribir el texto y confirmar que quedó tal cual;
- *   4. pulsar Enviar y confirmar que la caja se vació.
- * Si algo falla, no sigue: devuelve en qué paso falló.
+ *   2. esperar a que la pantalla se quede quieta y encontrar la caja de mensaje, vacía;
+ *   3. escribir el texto letra por letra (como lo haría una persona) y comprobar que quedó tal cual;
+ *   4. pulsar Enviar (con reintentos) y confirmar que la caja se vació.
+ * Si algo falla, no sigue: devuelve en qué paso falló. Si cambiaste de chat en Facebook
+ * a mitad de camino, se aborta sin tocar nada (para no escribir en el chat equivocado).
  */
 (() => {
   'use strict';
-  if (globalThis.mnReplyVersion === 1) return;
+  if (globalThis.mnReplyVersion === 2) return;
 
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const rand = (a, b) => a + Math.random() * (b - a);
 
   async function waitFor(fn, ms) {
     const end = Date.now() + ms;
@@ -31,10 +33,12 @@
     return !!(el && (el.offsetWidth || el.offsetHeight || (el.getClientRects && el.getClientRects().length)));
   }
 
-  const norm = (s) => String(s || '').replace(/[​ ]/g, ' ').replace(/\s+/g, ' ').trim();
-  const squash = (s) => String(s || '').replace(/[​ \s]+/g, '');
+  const norm = (s) => String(s || '').replace(/[​ ]/g, ' ').replace(/\s+/g, ' ').trim();
+  const squash = (s) => String(s || '').replace(/[​ \s]+/g, '');
 
   // La caja donde se escribe el mensaje: un div editable con role="textbox".
+  // Se busca de nuevo cada vez que hace falta: al cambiar de chat, Facebook
+  // reemplaza este nodo por otro, y seguir usando el viejo escribiría al vacío.
   function findComposer() {
     const cands = Array.from(document.querySelectorAll('[contenteditable="true"][role="textbox"], div[contenteditable="true"][aria-label]'))
       .filter(visible);
@@ -65,6 +69,36 @@
       c.dispatchEvent(new KeyboardEvent('keydown', { keyCode: i ? 13 : 0, key: i ? 'Enter' : '', shiftKey: true, bubbles: true, cancelable: true }));
       if (lines[i]) document.execCommand('insertText', false, lines[i]);
     }
+  }
+
+  // Escritura "humana": una letra a la vez, con pausas irregulares (más largas
+  // tras un espacio o signo de puntuación, como al pensar la frase). Si a mitad
+  // de camino cambia el chat abierto o la caja desaparece, se detiene ahí mismo
+  // (quien llama decide qué hacer con lo que quedó escrito).
+  const HUMAN_MAX_MS = 25000;    // tope de duración; textos largos se aceleran para no pasarse
+  async function typeHuman(c, text, threadRe) {
+    c.focus();
+    const lines = String(text).split(/\r?\n/);
+    const totalChars = text.length || 1;
+    const budgetPerChar = Math.min(90, Math.max(12, HUMAN_MAX_MS / totalChars));
+    for (let li = 0; li < lines.length; li++) {
+      if (!threadRe.test(location.pathname) || !c.isConnected) return false;
+      c.dispatchEvent(new KeyboardEvent('keydown', { keyCode: li ? 13 : 0, key: li ? 'Enter' : '', shiftKey: true, bubbles: true, cancelable: true }));
+      const line = lines[li];
+      for (let i = 0; i < line.length; i++) {
+        if (!threadRe.test(location.pathname) || !c.isConnected) return false;
+        const ch = line[i];
+        c.dispatchEvent(new KeyboardEvent('keydown', { key: ch, bubbles: true, cancelable: true }));
+        c.dispatchEvent(new InputEvent('beforeinput', { data: ch, inputType: 'insertText', bubbles: true, cancelable: true }));
+        document.execCommand('insertText', false, ch);
+        c.dispatchEvent(new KeyboardEvent('keyup', { key: ch, bubbles: true, cancelable: true }));
+        let pause = rand(budgetPerChar * 0.5, budgetPerChar * 1.5);
+        if (/[ ,;:]/.test(ch)) pause += rand(40, 120);
+        else if (/[.!?]/.test(ch)) pause += rand(90, 220);
+        await wait(Math.min(pause, 260));
+      }
+    }
+    return true;
   }
 
   // Plan B si el editor no aceptó el texto: simular que se pega.
@@ -98,8 +132,8 @@
     return best;
   }
 
-  function pressEnter(c) {
-    const init = { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true };
+  function pressEnter(c, extra) {
+    const init = Object.assign({ key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true }, extra || {});
     c.focus();
     c.dispatchEvent(new KeyboardEvent('keydown', init));
     c.dispatchEvent(new KeyboardEvent('keypress', init));
@@ -122,18 +156,31 @@
       link.click();
       const opened = await waitFor(() => threadRe.test(location.pathname), 8000);
       if (!opened) return { ok: false, stage: 'abrir', detail: 'no se abrió el chat' };
+      // Tras alternar de chat, Facebook tarda un instante en reconstruir la
+      // conversación; si se escribe antes de que se asiente, el texto puede
+      // quedar en el chat anterior o perderse. Se espera a que la caja deje
+      // de cambiar de identidad (DOM quieto) antes de seguir.
+      await wait(700);
     }
 
-    // 2. la caja de mensaje, vacía
-    const composer = await waitFor(findComposer, 10000);
+    // 2. la caja de mensaje, vacía (se busca de nuevo: la de antes puede ya no servir)
+    let composer = await waitFor(() => (threadRe.test(location.pathname) ? findComposer() : null), 10000);
     if (!composer) return { ok: false, stage: 'caja', detail: 'no encuentro la caja para escribir el mensaje' };
-    await wait(500);
+    await wait(400);
     if (!threadRe.test(location.pathname)) return { ok: false, stage: 'abrir', detail: 'el chat abierto cambió; no escribo nada' };
+    composer = findComposer() || composer; // revalidar tras la espera
     if (composerText(composer)) return { ok: false, stage: 'borrador', detail: 'ya hay un texto escrito en ese chat (un borrador); no lo piso' };
 
-    // 3. escribir y comprobar que quedó igual
-    typeInto(composer, text);
-    await wait(300);
+    // 3. escribir letra por letra y comprobar que quedó igual
+    const finishedTyping = await typeHuman(composer, text, threadRe);
+    if (!finishedTyping) {
+      // Cambiaste de chat en Facebook a mitad de la escritura: no seguimos
+      // (podría estar escribiendo en el chat equivocado).
+      return { ok: false, stage: 'escribir', detail: 'cambiaste de chat en Facebook mientras escribía; dejé de escribir' };
+    }
+    await wait(250);
+    if (!threadRe.test(location.pathname)) return { ok: false, stage: 'abrir', detail: 'el chat abierto cambió justo al terminar de escribir; no envío' };
+    composer = findComposer() || composer;
     if (squash(composer.innerText || composer.textContent) !== squash(text)) {
       clearComposer(composer);
       await wait(200);
@@ -146,17 +193,33 @@
     }
     if (!send) return { ok: true, sent: false, stage: 'escrito' };
 
-    // 4. enviar y comprobar que la caja se vació
-    const btn = findSendButton(composer);
-    if (btn) btn.click(); else pressEnter(composer);
-    let cleared = await waitFor(() => !composer.isConnected || !composerText(composer), 6000);
-    if (!cleared && btn) {
+    // 4. enviar, con varios intentos, revalidando el chat y la caja en cada uno
+    if (!threadRe.test(location.pathname)) return { ok: false, stage: 'abrir', detail: 'el chat abierto cambió antes de enviar; dejé el texto escrito sin enviar' };
+    const btnWait = await waitFor(() => findSendButton(composer), 2000);
+    let cleared = false;
+    if (btnWait) { btnWait.click(); cleared = await waitFor(() => !composer.isConnected || !composerText(composer), 4000); }
+    if (!cleared) {
+      composer = findComposer() || composer;
       pressEnter(composer);
-      cleared = await waitFor(() => !composer.isConnected || !composerText(composer), 4000);
+      cleared = await waitFor(() => !composer.isConnected || !composerText(composer), 3000);
+    }
+    if (!cleared) {
+      composer = findComposer() || composer;
+      pressEnter(composer, { keyCode: 13, which: 13 });
+      cleared = await waitFor(() => !composer.isConnected || !composerText(composer), 3000);
+    }
+    if (!cleared) {
+      const btnAgain = findSendButton(composer);
+      if (btnAgain) { btnAgain.click(); cleared = await waitFor(() => !composer.isConnected || !composerText(composer), 3000); }
     }
     if (!cleared) return { ok: false, stage: 'enviar', detail: 'el texto quedó escrito en el chat pero Facebook no lo envió' };
+    // Darle un respiro a Facebook antes de que el background abra otro chat:
+    // si se cambia de inmediato, un envío que aún no terminó de procesarse
+    // (el "enviado" a veces llega un instante después de vaciar la caja) puede
+    // mezclarse con el chat siguiente.
+    await wait(1200);
     return { ok: true, sent: true, stage: 'enviado' };
   };
 
-  globalThis.mnReplyVersion = 1;
+  globalThis.mnReplyVersion = 2;
 })();

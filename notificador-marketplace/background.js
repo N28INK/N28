@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.11 — service worker (background.js)
+/* Notificador Marketplace v0.12 — service worker (background.js)
  * Recibe la lista de chats (del content script, de su propio despertador de
  * 30 segundos o del cambio de título de la pestaña) y, cuando hay un mensaje
  * nuevo sin leer, te avisa al teléfono por WhatsApp (CallMeBot) o Telegram,
@@ -20,10 +20,14 @@ const TITLE_RESCAN_MS = 6 * 1000;
 const TOP_ROWS = 3;                          // filas de arriba de la lista = chats con actividad reciente
 const FB_URLS = ['https://www.facebook.com/*', 'https://www.messenger.com/*'];
 const INBOX_URL = 'https://www.facebook.com/messages/';
-const COOLDOWN_MS = 60 * 1000;               // máx. 1 aviso por chat cada minuto
-const COLLECTOR_VERSION = 10;                // versión de collector.js que espera este background
+const COOLDOWN_MS = 60 * 1000;               // máx. 1 aviso por chat cada minuto (salvo chat "activo", ver ACTIVE_COOLDOWN_MS)
+const ACTIVE_COOLDOWN_MS = 3 * 1000;         // chats con los que contestaste hace poco: casi sin espera entre avisos
+const ACTIVE_CHAT_MS = 30 * 60 * 1000;       // minutos que un chat queda "activo" tras contestarlo desde Telegram
+const COLLECTOR_VERSION = 11;                // versión de collector.js que espera este background
 const MP_INBOX_URL = 'https://www.facebook.com/marketplace/inbox/';
-const LOG_MAX = 80;                          // eventos que guarda el registro
+const LOG_MAX = 200;                         // eventos que guarda el registro
+const LOG_COLLAPSE_MS = 10 * 60 * 1000;      // una misma línea repetida se cuenta (×N) en vez de inundar el registro
+const TITLE_BLINK_DEBOUNCE_MS = 20 * 1000;   // el título "parpadea" (va y vuelve) más rápido que esto: se ignora el repiqueteo
 const FORGET_MS = 30 * 24 * 60 * 60 * 1000; // olvidar chats sin actividad en 30 días
 const MAX_SEEN = 500;
 const NO_LIST_WARN_MIN = 10;                 // avisar si 10 min sin ver la lista de chats
@@ -40,7 +44,17 @@ function logEvent(kind, msg) {
     try {
       const d = await chrome.storage.local.get('mn_log');
       const log = d.mn_log || [];
-      log.push({ t: Date.now(), k: kind, m: String(msg).replace(/\s+/g, ' ').slice(0, 240) });
+      const text = String(msg).replace(/\s+/g, ' ').slice(0, 240);
+      const now = Date.now();
+      const last = log[log.length - 1];
+      // La misma línea seguida (p. ej. el título parpadeando) se cuenta en vez
+      // de repetirse: así el registro no se llena con 50 copias de lo mismo.
+      if (last && last.k === kind && last.m === text && now - last.t < LOG_COLLAPSE_MS) {
+        last.n = (last.n || 1) + 1;
+        last.t = now;
+      } else {
+        log.push({ t: now, k: kind, m: text });
+      }
       if (log.length > LOG_MAX) log.splice(0, log.length - LOG_MAX);
       await chrome.storage.local.set({ mn_log: log });
     } catch (e) { /* el registro es opcional */ }
@@ -140,9 +154,9 @@ async function scanTab(tab) {
 let lastTabErrLog = 0;
 async function logTabError(e) {
   const now = Date.now();
-  if (now - lastTabErrLog < 5 * 60 * 1000) return;
+  if (now - lastTabErrLog < 10 * 60 * 1000) return;
   lastTabErrLog = now;
-  await logEvent('tab', 'No pude leer una pestaña de Facebook: ' + shortText(e && e.message ? e.message : e, 80));
+  await logEvent('tab', 'No pude leer una pestaña de Facebook (es normal en alguna pestaña suelta; mientras otra sí muestre la lista, sigo vigilando): ' + shortText(e && e.message ? e.message : e, 80));
 }
 
 // executeScript en una pestaña congelada por Chrome puede no responder nunca
@@ -194,13 +208,28 @@ async function onTitle(tab, title) {
   const d = await chrome.storage.session.get(key);
   const known = !!d[key];
   const prevCount = known ? d[key].count : 0;
+  const lastAt = known ? (d[key].lastAt || 0) : 0;
   const flash = FLASH_RE.exec(title);
   const m = /^\((\d+)\)/.exec(title);
-  const count = m ? parseInt(m[1], 10) : 0;
-  // El título parpadeante no trae el "(N)": no tocar el contador con él.
-  if (!flash) await chrome.storage.session.set({ [key]: { count: count } });
-  if (!flash && (!known || count <= prevCount)) return;
-  if (titleBusy.has(tab.id)) return; // el parpadeo cambia el título cada segundo
+  const count = m ? parseInt(m[1], 10) : null;
+  const now = Date.now();
+  // Facebook hace parpadear el título alternando "(2) Messenger | Facebook" con
+  // otra forma SIN el número entre paréntesis (la vista previa del mensaje, o el
+  // título normal). Esa forma sin número no significa "ya no hay nada sin leer":
+  // antes se tomaba como que el contador bajó a 0 y por eso cada parpadeo volvía
+  // a parecer un mensaje nuevo. Ahora el contador nunca baja por un título sin
+  // número; solo baja cuando de verdad vuelve a 0 chats sin leer (se ve en la lista).
+  const status = (await chrome.storage.local.get('mn_status')).mn_status || {};
+  const floor = Math.max(prevCount, status.unread || 0);
+  const baseline = count !== null ? Math.max(count, floor) : floor;
+  const rising = count !== null && count > floor;
+  if (count !== null || !known) await chrome.storage.session.set({ [key]: { count: baseline, lastAt: lastAt } });
+  if (!flash && !rising) return; // nada que no se supiera ya (incluye el parpadeo a la forma sin número)
+  // El mismo aviso (parpadeo) puede repetirse varias veces por segundo: basta
+  // con reaccionar una vez cada TITLE_BLINK_DEBOUNCE_MS.
+  if (known && now - lastAt < TITLE_BLINK_DEBOUNCE_MS) return;
+  await chrome.storage.session.set({ [key]: { count: baseline, lastAt: now } });
+  if (titleBusy.has(tab.id)) return; // una revisión a la vez por pestaña
   titleBusy.add(tab.id);
   try {
     const s = await getSettings();
@@ -462,8 +491,9 @@ async function processScan(scan) {
   const threads = Array.isArray(scan.threads) ? scan.threads : [];
   if (!s.enabled || !threads.length) return;
 
-  const data = await chrome.storage.local.get('mn_seen');
+  const data = await chrome.storage.local.get(['mn_seen', 'mn_active']);
   const seen = data.mn_seen || {};
+  const activeMap = data.mn_active || {};
   const now = Date.now();
   const toAlert = [];
   let deliberateSkip = false; // la lista vio el mensaje y decidió no avisar (lo estás viendo, filtro Marketplace…)
@@ -492,6 +522,10 @@ async function processScan(scan) {
     const fresh = changed || again;
     const who = '"' + shortText(th.name, 30) + '"';
     const skip = (why) => (fresh ? logEvent('skip', 'No aviso de ' + who + ': ' + why) : null);
+    // Un chat al que le contestaste hace poco desde Telegram: estás en plena
+    // conversación, así que cada respuesta del cliente se avisa completa y casi
+    // sin espera, aunque tengas esa pestaña abierta o enfocada en el PC.
+    const isActive = !!(activeMap[th.tid] && activeMap[th.tid] > now);
 
     if (th.mine) { cur.handled = ''; cur.pending = false; continue; } // respondiste tú
     if (cur.text === cur.handled) { cur.pending = false; continue; }
@@ -511,14 +545,14 @@ async function processScan(scan) {
       cur.pending = false;
       continue;
     }
-    if (th.tid === scan.openTid) {                // lo estás mirando ahora mismo
+    if (th.tid === scan.openTid && !isActive) {   // lo estás mirando ahora mismo (salvo conversación activa)
       await skip('tienes ese chat abierto en pantalla.');
       deliberateSkip = true;
       cur.handled = cur.text;
       cur.pending = false;
       continue;
     }
-    if (th.src === 'texto' && scan.focused) {     // bandeja de Marketplace a la vista
+    if (th.src === 'texto' && scan.focused && !isActive) { // bandeja de Marketplace a la vista
       await skip('estás mirando la bandeja de Marketplace en pantalla.');
       deliberateSkip = true;
       cur.handled = cur.text;
@@ -533,15 +567,18 @@ async function processScan(scan) {
       continue;
     }
     // Varios mensajes seguidos del mismo chat: un aviso, y el resto queda
-    // pendiente hasta que pase el tiempo de espera.
-    if (now - cur.alertAt < COOLDOWN_MS) {
-      await skip('ya se avisó de este chat hace menos de un minuto; se avisará del último mensaje enseguida.');
+    // pendiente hasta que pase el tiempo de espera. En una conversación activa
+    // (le acabas de contestar desde Telegram) la espera es mucho más corta,
+    // para que cada respuesta del cliente llegue casi al instante.
+    const cooldown = isActive ? ACTIVE_COOLDOWN_MS : COOLDOWN_MS;
+    if (now - cur.alertAt < cooldown) {
+      await skip('ya se avisó de este chat hace muy poco; se avisará del último mensaje enseguida.');
       continue;
     }
     cur.alertAt = now;
     cur.handled = cur.text;
     cur.pending = false;
-    toAlert.push(th);
+    toAlert.push({ th: th, isActive: isActive });
   }
 
   // Limpieza para que el almacenamiento no crezca sin fin (la v0.4 nunca borraba).
@@ -559,7 +596,7 @@ async function processScan(scan) {
   });
   if (deliberateSkip) await setStatus({ lastSkipAt: now });
 
-  for (const th of toAlert) await alertNewMessage(th, s);
+  for (const item of toAlert) await alertNewMessage(item.th, s, item.isActive);
 }
 
 async function setStatus(patch) {
@@ -567,13 +604,13 @@ async function setStatus(patch) {
   await chrome.storage.local.set({ mn_status: Object.assign({}, d.mn_status || {}, patch) });
 }
 
-async function alertNewMessage(th, s) {
+async function alertNewMessage(th, s, isActive) {
   const where = th.isMarketplace ? 'Marketplace' : 'Messenger';
   const link = th.link || (INBOX_URL + 't/' + th.tid + '/');
   const text =
-    '🔔 *Nuevo mensaje en ' + where + '*\n' +
+    (isActive ? '💬 *Respuesta de ' + th.name + '*\n' : '🔔 *Nuevo mensaje en ' + where + '*\n') +
     accountLine(await accountName(s)) + '\n' +
-    'De: ' + th.name + '\n' +
+    (isActive ? '' : 'De: ' + th.name + '\n') +
     '"' + th.text + '"\n\n' +
     'Responder: ' + link;
   const canReply = replyActive(s) && th.src !== 'texto' && /^\d+$/.test(String(th.tid));
@@ -677,6 +714,32 @@ async function rememberTarget(messageId, th) {
   const out = {};
   keep.forEach((k) => { out[k] = map[k]; });
   await chrome.storage.local.set({ mn_replies: out });
+}
+
+// Un chat al que le acabas de contestar desde Telegram queda "activo" un rato:
+// sus próximas respuestas se avisan completas y casi sin espera (ver ACTIVE_COOLDOWN_MS
+// en processScan), aunque tengas ese chat abierto o enfocado en el PC.
+async function markActive(tid) {
+  if (!/^\d+$/.test(String(tid))) return;
+  const d = await chrome.storage.local.get('mn_active');
+  const map = d.mn_active || {};
+  const now = Date.now();
+  map[String(tid)] = now + ACTIVE_CHAT_MS;
+  for (const k of Object.keys(map)) if (map[k] < now) delete map[k];
+  await chrome.storage.local.set({ mn_active: map });
+}
+
+// Cola: si llega una respuesta tuya de Telegram mientras otra todavía se está
+// escribiendo en Facebook, espera su turno en vez de pisarla (dos "mnReply" a
+// la vez en la misma pestaña es justo lo que hacía fallar el envío al alternar).
+let replyChain = Promise.resolve();
+let replyBusy = 0;
+function queueReply(fn) {
+  const wasBusy = replyBusy > 0;
+  replyBusy++;
+  const run = replyChain.then(() => fn(wasBusy), () => fn(wasBusy)).finally(() => { replyBusy--; });
+  replyChain = run.catch(() => {});
+  return run;
 }
 
 // Tras un aviso se escucha a Telegram con espera larga (respuesta casi inmediata) durante 10 min.
@@ -833,9 +896,16 @@ async function handleTelegramMessage(msg, s) {
   if (!rate.ok) { await tgSay(s, '⏳ ' + rate.why, msg.message_id); return; }
 
   const target = res.target;
+  await markActive(target.tid);
   const who = '«' + shortText(target.name, 40) + '»';
   await logEvent('reply', 'Tu respuesta de Telegram va al chat de ' + who + ': "' + shortText(text, 50) + '"');
-  const r = await deliverReply(target, text, s);
+  const r = await queueReply(async (wasBusy) => {
+    if (wasBusy) {
+      await tgSay(s, '⏳ En cola para ' + who + ': contesto en cuanto termine la respuesta anterior…', msg.message_id);
+      await logEvent('reply', 'Respuesta a ' + who + ' puesta en cola (había otra en curso).');
+    }
+    return deliverReply(target, text, s);
+  });
   if (r.ok && r.sent) {
     await tgSay(s, '✅ Enviado a ' + who + ': «' + shortText(text, 120) + '»', msg.message_id);
     await logEvent('reply', 'Respuesta enviada al chat de ' + who + '.');

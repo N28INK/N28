@@ -180,6 +180,30 @@ Si NO te llegan los avisos (pero sí la prueba)
    (los chats que ya estaban sin leer al abrirla no avisan), y no tengas
    ese chat abierto en pantalla.
 
+Cambios v0.12 (alternar chats sin fallos, avisos completos, escritura humana)
+------------------------------------------------------------------------------
+- Al contestar varios chats seguidos desde Telegram, la respuesta a veces se
+  quedaba escrita en el chat sin enviarse (había que pulsar Enter a mano):
+  ahora, tras cambiar de chat, espera a que Facebook se asiente, vuelve a
+  buscar la caja de mensaje justo antes de escribir y de enviar, comprueba que
+  sigue en el chat correcto en cada paso, y reintenta el envío de varias
+  formas (botón "Enviar" y Enter) antes de rendirse. Si llega otra respuesta
+  tuya mientras la anterior se está escribiendo, espera su turno en vez de
+  pisarla (avisa "⏳ En cola").
+- El texto se escribe letra por letra, con pausas irregulares, como lo haría
+  una persona (antes se pegaba de golpe).
+- Las respuestas del comprador ya no se cortan a 200 caracteres: llegan
+  completas al bot de Telegram. Mientras sigues una conversación (le
+  contestaste hace poco desde Telegram), cada respuesta del comprador avisa
+  casi al instante y sin importar si tienes ese chat abierto en el PC
+  ("💬 Respuesta de …"), sin dejar de respetar "solo Marketplace" si lo
+  tienes activado.
+- El título de la pestaña parpadeando ("(2) Messenger | Facebook" yendo y
+  viniendo) inundaba el registro y mandaba avisos generales de más: ahora se
+  distingue el parpadeo de un mensaje nuevo de verdad, y el registro junta
+  las líneas repetidas en una sola con un contador (×N) en vez de listarlas
+  todas.
+
 Cambios v0.11
 -------------
 - Contestar desde Telegram (ver arriba). Archivo nuevo: replier.js.

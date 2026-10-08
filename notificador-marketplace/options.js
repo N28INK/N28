@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.11 — options.js */
+/* Notificador Marketplace v0.12 — options.js */
 'use strict';
 
 const DEFAULTS = {
@@ -156,7 +156,7 @@ $('replyEnabled').addEventListener('change', showReplyHint);
 async function showLog() {
   const d = await chrome.storage.local.get('mn_log');
   const log = d.mn_log || [];
-  $('logOut').value = log.map((e) => new Date(e.t).toLocaleString('es') + '  [' + e.k + ']  ' + e.m).join('\n');
+  $('logOut').value = log.map((e) => new Date(e.t).toLocaleString('es') + '  [' + e.k + ']  ' + e.m + (e.n > 1 ? '  (×' + e.n + ')' : '')).join('\n');
   $('logOut').scrollTop = $('logOut').scrollHeight;
 }
 $('refreshLog').addEventListener('click', showLog);
