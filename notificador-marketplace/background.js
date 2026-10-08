@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.9 — service worker (background.js)
+/* Notificador Marketplace v0.10 — service worker (background.js)
  * Recibe la lista de chats (del content script, de su propio despertador de
  * 30 segundos o del cambio de título de la pestaña) y, cuando hay un mensaje
  * nuevo sin leer, te avisa al teléfono por WhatsApp (CallMeBot) o Telegram,
@@ -20,7 +20,7 @@ const TOP_ROWS = 3;                          // filas de arriba de la lista = ch
 const FB_URLS = ['https://www.facebook.com/*', 'https://www.messenger.com/*'];
 const INBOX_URL = 'https://www.facebook.com/messages/';
 const COOLDOWN_MS = 60 * 1000;               // máx. 1 aviso por chat cada minuto
-const COLLECTOR_VERSION = 9;                 // versión de collector.js que espera este background
+const COLLECTOR_VERSION = 10;                // versión de collector.js que espera este background
 const MP_INBOX_URL = 'https://www.facebook.com/marketplace/inbox/';
 const LOG_MAX = 80;                          // eventos que guarda el registro
 const FORGET_MS = 30 * 24 * 60 * 60 * 1000; // olvidar chats sin actividad en 30 días
@@ -210,15 +210,25 @@ async function onTitle(tab, title) {
     await scanTab(tab);
     await queue;
     const st = (await chrome.storage.local.get('mn_status')).mn_status || {};
-    if ((st.lastAlertAt || 0) >= since - COOLDOWN_MS) {
+    if ((st.lastListAlertAt || 0) >= since - COOLDOWN_MS) {
       await logEvent('title', 'Ya se había avisado por la lista; no mando aviso general.');
       return;
     }
-    if (s.marketplaceOnly) {
-      await logEvent('title', 'No mando aviso general: tienes activado "solo Marketplace" (sin la lista no sé si es de Marketplace).');
+    if ((st.lastSkipAt || 0) >= since) {
+      await logEvent('title', 'La lista sí vio ese mensaje y decidió no avisar (el motivo está arriba); no mando aviso general.');
       return;
     }
     const name = flash ? title.slice(0, flash.index).replace(/^\(\d+\)\s*/, '').trim() : '';
+    // El título parpadea y se repite: un solo aviso general por mensaje.
+    const gkey = count + '|' + name;
+    if (st.lastGenericKey === gkey && Date.now() - (st.lastGenericAt || 0) < 90 * 1000) {
+      await logEvent('title', 'Ya mandé el aviso general de este mismo cambio de título; no lo repito.');
+      return;
+    }
+    await setStatus({ lastGenericKey: gkey, lastGenericAt: Date.now() });
+    if (s.marketplaceOnly) {
+      await logEvent('title', 'La lista no mostró el mensaje, así que no sé si es de Marketplace: mando aviso general (tienes activado "solo Marketplace").');
+    }
     await alertGeneric(name, count, s);
   } finally {
     titleBusy.delete(tab.id);
@@ -231,6 +241,7 @@ async function alertGeneric(name, count, s) {
     accountLine(await accountName(s)) + '\n' +
     (name ? 'De: ' + name + '\n' : '') +
     (count ? 'Tienes ' + count + ' chat(s) sin leer.\n' : '') +
+    (s.marketplaceOnly ? 'No pude ver de qué chat viene (puede no ser de Marketplace).\n' : '') +
     '\nResponder: ' + INBOX_URL;
   if (s.pcNotify) notifyPC('mn-open-inbox-' + Date.now(), 'Nuevo mensaje en Facebook', name ? 'De: ' + name : 'Tienes mensajes sin leer.');
   const via = s.channel === 'telegram' ? 'Telegram' : 'WhatsApp';
@@ -448,6 +459,7 @@ async function processScan(scan) {
   const seen = data.mn_seen || {};
   const now = Date.now();
   const toAlert = [];
+  let deliberateSkip = false; // la lista vio el mensaje y decidió no avisar (lo estás viendo, filtro Marketplace…)
 
   if (scan.warmup) {
     await logEvent('scan', 'Primera lectura de ' + kindName(scan.kind) + ': ' + threads.length +
@@ -494,18 +506,21 @@ async function processScan(scan) {
     }
     if (th.tid === scan.openTid) {                // lo estás mirando ahora mismo
       await skip('tienes ese chat abierto en pantalla.');
+      deliberateSkip = true;
       cur.handled = cur.text;
       cur.pending = false;
       continue;
     }
     if (th.src === 'texto' && scan.focused) {     // bandeja de Marketplace a la vista
       await skip('estás mirando la bandeja de Marketplace en pantalla.');
+      deliberateSkip = true;
       cur.handled = cur.text;
       cur.pending = false;
       continue;
     }
     if (s.marketplaceOnly && !th.isMarketplace) {
       await skip('no es de Marketplace y tienes activado "solo Marketplace" en Configuración.');
+      deliberateSkip = true;
       cur.handled = cur.text;
       cur.pending = false;
       continue;
@@ -535,6 +550,7 @@ async function processScan(scan) {
     lastScanAt: now, threads: threads.length, unread: unreadCount, marketplace: mpCount,
     kind: scan.kind || '', source: scan.source || ''
   });
+  if (deliberateSkip) await setStatus({ lastSkipAt: now });
 
   for (const th of toAlert) await alertNewMessage(th, s);
 }
@@ -563,7 +579,7 @@ async function alertNewMessage(th, s) {
   const via = s.channel === 'telegram' ? 'Telegram' : 'WhatsApp';
   const r = await sendNotification(text, s);
   if (r.ok) {
-    await setStatus({ lastAlertAt: Date.now(), lastAlertName: th.name, lastError: '' });
+    await setStatus({ lastAlertAt: Date.now(), lastListAlertAt: Date.now(), lastAlertName: th.name, lastError: '' });
     await logEvent('ok', 'Aviso enviado por ' + via + ': "' + shortText(th.name, 30) + '" — ' + shortText(th.text, 50));
   } else {
     await setStatus({ lastError: r.message });

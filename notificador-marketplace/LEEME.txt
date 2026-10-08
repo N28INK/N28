@@ -1,4 +1,4 @@
-NOTIFICADOR MARKETPLACE v0.9 — LÉEME
+NOTIFICADOR MARKETPLACE v0.10 — LÉEME
 =====================================
 
 ¿Qué hace?
@@ -146,6 +146,20 @@ Si NO te llegan los avisos (pero sí la prueba)
 3. Para probar: pide a alguien que te escriba DESPUÉS de abrir la pestaña
    (los chats que ya estaban sin leer al abrirla no avisan), y no tengas
    ese chat abierto en pantalla.
+
+Cambios v0.10 (a partir del registro de un usuario real)
+-------------------------------------------------------
+- La casilla "Avisar solo de chats de Marketplace" venía ENCENDIDA desde
+  versiones viejas y silenciaba todo lo que no fuera Marketplace, incluido el
+  aviso general por el título. Ahora el icono muestra un aviso rojo si está
+  encendida y la apaga con un clic ("Avisar de todos los chats").
+- Si la lista de chats NO muestra el mensaje (pasa con la ventana minimizada)
+  y solo cambia el título "(1) Messenger", se manda el aviso general aunque
+  esa casilla esté encendida (dice "no pude ver de qué chat viene"). Si la
+  lista SÍ vio el chat y lo descartó por no ser de Marketplace, no se repite.
+- Las filas que empiezan con "Activo ahora" se leían con ese texto como
+  nombre (y no se reconocían como Marketplace). Corregido.
+- El título que parpadea "(1)" ya no manda el aviso general varias veces.
 
 Cambios v0.9 (avisos más seguros y con explicación)
 ---------------------------------------------------

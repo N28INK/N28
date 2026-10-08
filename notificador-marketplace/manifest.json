@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Notificador Marketplace",
-  "version": "0.9",
+  "version": "0.10",
   "description": "Te avisa en tu WhatsApp o Telegram cuando te escriben en Facebook Marketplace / Messenger.",
   "minimum_chrome_version": "116",
   "icons": { "16": "icon16.png", "32": "icon32.png", "48": "icon48.png", "128": "icon128.png" },

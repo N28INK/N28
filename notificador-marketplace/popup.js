@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.9 — popup.js */
+/* Notificador Marketplace v0.10 — popup.js */
 'use strict';
 
 const INBOX_URL = 'https://www.facebook.com/messages/';
@@ -29,6 +29,7 @@ async function refresh() {
   else if (st.lastError) setBox('config', '❌ Último envío falló: ' + st.lastError, 'bad');
   else setBox('config', '✅ Avisos activos por ' + channel + (cfg.marketplaceOnly ? ' (solo chats de Marketplace)' : '') + '.', 'ok');
 
+  document.getElementById('mponly').hidden = cfg.marketplaceOnly !== true;
   const manual = String(cfg.accountName || '').trim();
   const found = d.mn_account && d.mn_account.name;
   if (manual) setBox('acct', '📘 Cuenta de Facebook en los avisos: ' + manual + ' (escrita por ti)', 'ok');
@@ -82,6 +83,14 @@ document.getElementById('test').addEventListener('click', async () => {
 });
 
 refresh();
+});
+
+document.getElementById('mpoff').addEventListener('click', async () => {
+  const d = await chrome.storage.local.get('mn_settings');
+  const cfg = d.mn_settings || {};
+  cfg.marketplaceOnly = false;
+  await chrome.storage.local.set({ mn_settings: cfg });
+  refresh();
 });
 
 document.getElementById('openInbox').addEventListener('click', async () => {

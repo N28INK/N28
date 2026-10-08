@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.9 — collector.js
+/* Notificador Marketplace v0.10 — collector.js
  * Lee la lista de chats que se ve en la página y el nombre de la cuenta de
  * Facebook que tiene la sesión iniciada. Sabe leer dos páginas:
  *   - facebook.com/messages (Messenger): filas con enlaces /t/<id>;
@@ -12,7 +12,7 @@
  */
 (() => {
   'use strict';
-  if (globalThis.mnCollectVersion === 9) return;
+  if (globalThis.mnCollectVersion === 10) return;
 
   // Líneas que no son parte del mensaje: hora relativa, "Activo ahora", marcas de no leído…
   const MONTH = '(?:ene|enero|feb|febrero|mar|marzo|abr|abril|may|mayo|jun|junio|jul|julio|ago|agosto|sep|sept|septiembre|oct|octubre|nov|noviembre|dic|diciembre|jan|january|february|march|apr|april|june|july|aug|august|september|october|november|dec|december)\\.?';
@@ -29,6 +29,8 @@
       '\\d{1,2}/\\d{1,2}(?:/\\d{2,4})?'
     ].join('|') + ')$', 'i');
   const NOISE_RE = /^(?:·|•|activ[oa] ahora|active now|en l[ií]nea|online|mensaje no le[ií]do|mensajes no le[ií]dos|unread message|unread messages|no le[ií]do|sin leer|unread)$/i;
+  // Estado de conexión que Facebook pone en la fila ("Activo ahora", "Active 5m ago"): no es el nombre ni el mensaje.
+  const ACTIVE_RE = /^(?:activ[oa]\s+(?:ahora|hace\s+\S.*)|active\s+(?:now|\S.*\s+ago)|en l[ií]nea|online)$/i;
   const UNREAD_TEXT_RE = /\bunread\b|no le[ií]d[oa]s?|sin leer/i;
   const UNREAD_LINE_RE = /^(?:mensajes? no le[ií]dos?|unread messages?|no le[ií]d[oa]|sin leer|unread)$/i;
   // "Unread message: Hola" / "Mensaje no leído: Hola": la etiqueta oculta de Facebook delante del texto.
@@ -196,7 +198,7 @@
       const tid = threadId(href);
       if (!tid || byId.has(tid)) continue;
       const fullText = (link.innerText || '').trim();
-      const lines = fullText.split('\n').map((s) => s.trim()).filter(Boolean);
+      const lines = fullText.split('\n').map((s) => s.trim()).filter(Boolean).filter((l) => !ACTIVE_RE.test(l));
       if (lines.length < 2) continue; // sin nombre + mensaje no es una fila de la lista
       const name = lines[0].slice(0, 80);
       const sn = parseSnippet(lines.slice(1));
@@ -316,5 +318,5 @@
       accountSource: acct ? acct.source : ''
     };
   };
-  globalThis.mnCollectVersion = 9;
+  globalThis.mnCollectVersion = 10;
 })();
