@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.7 — popup.js */
+/* Notificador Marketplace v0.8 — popup.js */
 'use strict';
 
 const INBOX_URL = 'https://www.facebook.com/messages/';
@@ -18,7 +18,7 @@ function setBox(id, text, kind) {
 }
 
 async function refresh() {
-  const d = await chrome.storage.local.get(['mn_settings', 'mn_status']);
+  const d = await chrome.storage.local.get(['mn_settings', 'mn_status', 'mn_account']);
   const cfg = d.mn_settings || {};
   const st = d.mn_status || {};
   const channel = cfg.channel === 'telegram' ? 'Telegram' : 'WhatsApp';
@@ -28,6 +28,12 @@ async function refresh() {
   else if (cfg.enabled === false) setBox('config', '⏸️ Avisos APAGADOS (' + channel + ').', 'warn');
   else if (st.lastError) setBox('config', '❌ Último envío falló: ' + st.lastError, 'bad');
   else setBox('config', '✅ Avisos activos por ' + channel + '.', 'ok');
+
+  const manual = String(cfg.accountName || '').trim();
+  const found = d.mn_account && d.mn_account.name;
+  if (manual) setBox('acct', '📘 Cuenta de Facebook en los avisos: ' + manual + ' (escrita por ti)', 'ok');
+  else if (found) setBox('acct', '📘 Cuenta de Facebook en los avisos: ' + found, 'ok');
+  else setBox('acct', '⚠️ No detecto el nombre de tu cuenta de Facebook. Abre facebook.com/messages y recarga la pestaña, o escríbelo en Configuración.', 'warn');
 
   if (st.lastScanAt && Date.now() - st.lastScanAt < 3 * 60 * 1000) {
     setBox('watch', '👀 Vigilando ' + st.threads + ' chats (' + (st.unread || 0) + ' sin leer, ' +

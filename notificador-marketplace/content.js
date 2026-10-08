@@ -1,6 +1,6 @@
-/* Notificador Marketplace v0.6 — content script (content.js)
- * Lee la lista de chats (con collector.js) y se la pasa al background, que
- * decide si avisa. Solo manda algo cuando la lista cambió, para no despertar
+/* Notificador Marketplace v0.8 — content script (content.js)
+ * Lee la lista de chats y el nombre de la cuenta de Facebook (con collector.js)
+ * y se los pasa al background, que decide si avisa. Solo manda algo cuando la lista cambió, para no despertar
  * al background cada 4 segundos sin motivo.
  */
 (() => {
@@ -9,6 +9,7 @@
   const HEARTBEAT_MS = 60 * 1000;
   let lastSig = '';
   let lastSentAt = 0;
+  let lastAccount = '';
   let timer = null;
 
   function report() {
@@ -23,8 +24,21 @@
     } catch (e) {
       return;
     }
+    // El nombre de la cuenta se avisa aparte: se detecta en cualquier página de
+    // Facebook, aunque todavía no esté abierta la lista de chats.
+    if (scan.account && scan.account !== lastAccount) {
+      lastAccount = scan.account;
+      try {
+        chrome.runtime
+          .sendMessage({ type: 'MN_ACCOUNT', name: scan.account, source: scan.accountSource })
+          .catch(() => {});
+      } catch (e) {
+        clearInterval(timer);
+        return;
+      }
+    }
     if (!scan.threads.length) return;
-    const sig = JSON.stringify([scan.openTid, scan.threads]);
+    const sig = JSON.stringify([scan.openTid, scan.account, scan.threads]);
     const now = Date.now();
     if (sig === lastSig && !scan.warmup && now - lastSentAt < HEARTBEAT_MS) return;
     lastSig = sig;

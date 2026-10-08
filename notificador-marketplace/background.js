@@ -1,14 +1,16 @@
-/* Notificador Marketplace v0.7 — service worker (background.js)
- * Recibe la lista de chats (del content script o de su propio despertador de
- * 30 segundos, o del cambio de título de la pestaña) y, cuando hay un mensaje nuevo sin leer, te avisa al teléfono por
- * WhatsApp (CallMeBot) o Telegram, y también con una notificación en el PC.
+/* Notificador Marketplace v0.8 — service worker (background.js)
+ * Recibe la lista de chats (del content script, de su propio despertador de
+ * 30 segundos o del cambio de título de la pestaña) y, cuando hay un mensaje
+ * nuevo sin leer, te avisa al teléfono por WhatsApp (CallMeBot) o Telegram,
+ * con el nombre de la cuenta de Facebook que lo recibió, y también con una
+ * notificación en el PC.
  */
 'use strict';
 
 const TAG = '[MN-bg]';
 const DEFAULTS = {
   enabled: true, marketplaceOnly: false, pcNotify: true, channel: 'whatsapp',
-  phone: '', apikey: '', tg_token: '', tg_chatid: ''
+  phone: '', apikey: '', tg_token: '', tg_chatid: '', accountName: ''
 };
 const ALARM = 'mn-keepalive';
 const ALARM_MIN = 0.5;                       // revisar cada 30 s (mínimo que permite Chrome)
@@ -94,7 +96,7 @@ function withTimeout(promise, ms) {
 async function collectFromTab(tabId) {
   const call = () => withTimeout(chrome.scripting.executeScript({
     target: { tabId: tabId },
-    func: () => (typeof globalThis.mnCollect === 'function' ? globalThis.mnCollect() : null)
+    func: () => (globalThis.mnCollectVersion === 8 ? globalThis.mnCollect() : null)
   }), SCRIPT_TIMEOUT_MS);
   let res = await call();
   if (!res || !res[0] || res[0].result == null) {
@@ -158,7 +160,8 @@ async function onTitle(tab, title) {
 
 async function alertGeneric(name, count, s) {
   const text =
-    '🔔 *Nuevo mensaje en Facebook*\n\n' +
+    '🔔 *Nuevo mensaje en Facebook*\n' +
+    accountLine(await accountName(s)) + '\n' +
     (name ? 'De: ' + name + '\n' : '') +
     (count ? 'Tienes ' + count + ' chat(s) sin leer.\n' : '') +
     '\nResponder: ' + INBOX_URL;
@@ -195,6 +198,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'MN_THREADS' && sender.tab && msg.scan) {
     enqueue(msg.scan);
     noteListPresence(true).catch(() => {});
+  } else if (msg.type === 'MN_ACCOUNT' && sender.tab) {
+    enqueueTask(() => rememberAccount(msg.name, msg.source));
   } else if (msg.type === 'MN_DIAG') {
     diagnose().then(sendResponse, (e) => sendResponse({ error: String(e) }));
     return true;
@@ -219,6 +224,11 @@ async function diagnose() {
     version: chrome.runtime.getManifest().version,
     canal: s.channel, activados: s.enabled, soloMarketplace: s.marketplaceOnly,
     estado: (await chrome.storage.local.get('mn_status')).mn_status || {},
+    cuenta: {
+      escritaAMano: cleanAccountName(s.accountName),
+      detectada: (await chrome.storage.local.get('mn_account')).mn_account || null,
+      seUsaraEnLosAvisos: await accountName(s)
+    },
     pestanas: []
   };
   for (const tab of tabs) {
@@ -233,8 +243,18 @@ async function diagnose() {
             texto: (a.innerText || '').slice(0, 160),
             aria: (a.getAttribute('aria-label') || '').slice(0, 80)
           }));
+          // Por qué no se detecta la cuenta (sin mostrar números de usuario).
+          const jsons = document.querySelectorAll('script[type="application/json"]');
+          let trozo = '';
+          for (const sc of jsons) {
+            const t = sc.textContent || '';
+            const i = t.indexOf('"CurrentUserInitialData"');
+            if (i !== -1) { trozo = t.slice(i, i + 220).replace(/\d{6,}/g, '#'); break; }
+          }
+          if (typeof globalThis.mnAccountInfo === 'function') globalThis.mnAccountInfo(true);
           return {
             visible: document.visibilityState, enlacesT: links.length, muestra: sample,
+            cuentaDebug: { scriptsJson: jsons.length, cookieC_user: /(?:^|;\s*)c_user=\d+/.test(document.cookie || ''), trozoCurrentUserInitialData: trozo },
             scan: typeof globalThis.mnCollect === 'function' ? globalThis.mnCollect() : 'sin lector'
           };
         }
@@ -262,14 +282,77 @@ async function getSettings() {
 // Cola: el content script (cada 4 s, por pestaña) y el despertador llegan a la
 // vez. Procesarlos uno detrás de otro evita avisos dobles y datos pisados.
 let queue = Promise.resolve();
-function enqueue(scan) {
-  queue = queue.then(() => processScan(scan)).catch((e) => console.error(TAG, e));
+function enqueueTask(fn) {
+  queue = queue.then(fn).catch((e) => console.error(TAG, e));
   return queue;
+}
+function enqueue(scan) {
+  return enqueueTask(() => processScan(scan));
+}
+
+/* ---------------- nombre de la cuenta de Facebook ----------------
+ * Se lee de la página (collector.js) y se guarda. Si lo escribiste a mano en la
+ * Configuración, ese nombre manda sobre el detectado.
+ */
+function cleanAccountName(n) {
+  return String(n || '')
+    .replace(/[\u0000-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2066-\u2069]+/g, ' ')
+    .replace(/\s+/g, ' ').trim().slice(0, 80);
+}
+
+async function rememberAccount(name, source) {
+  name = cleanAccountName(name);
+  if (!name) return;
+  const d = await chrome.storage.local.get('mn_account');
+  if (d.mn_account && d.mn_account.name === name) return; // sin cambios: no escribir en cada vuelta
+  await chrome.storage.local.set({ mn_account: { name: name, source: String(source || '').slice(0, 40), at: Date.now() } });
+}
+
+async function accountName(s) {
+  const manual = cleanAccountName(s && s.accountName);
+  if (manual) return manual;
+  const d = await chrome.storage.local.get('mn_account');
+  return (d.mn_account && d.mn_account.name) || '';
+}
+
+// Línea "Cuenta de Facebook" para los avisos del teléfono ('' si no se conoce).
+function accountLine(name) {
+  const n = String(name || '').replace(/\*/g, '');
+  return n ? '📘 Cuenta de Facebook: *' + n + '*\n' : '';
+}
+
+// Pide el nombre a cada pestaña de Facebook abierta (sin tocar la lista de chats).
+async function accountFromTab(tabId) {
+  const call = () => withTimeout(chrome.scripting.executeScript({
+    target: { tabId: tabId },
+    func: () => (globalThis.mnCollectVersion === 8 ? globalThis.mnAccountInfo(true) : undefined)
+  }), SCRIPT_TIMEOUT_MS);
+  let res = await call();
+  if (!res || !res[0] || res[0].result === undefined) {
+    await withTimeout(chrome.scripting.executeScript({ target: { tabId: tabId }, files: ['collector.js'] }), SCRIPT_TIMEOUT_MS);
+    res = await call();
+  }
+  return res && res[0] ? res[0].result : null;
+}
+
+async function refreshAccountFromTabs() {
+  let tabs = [];
+  try {
+    tabs = await chrome.tabs.query({ url: FB_URLS });
+  } catch (e) {
+    return;
+  }
+  const found = await Promise.all(
+    tabs.filter((t) => !t.discarded).map((t) => accountFromTab(t.id).catch(() => null))
+  );
+  const hit = found.find((a) => a && a.name);
+  if (hit) await rememberAccount(hit.name, hit.source);
 }
 
 // Núcleo: compara los chats con lo ya visto y avisa si hay algo nuevo.
 async function processScan(scan) {
   const s = await getSettings();
+  if (scan.account) await rememberAccount(scan.account, scan.accountSource);
   const threads = Array.isArray(scan.threads) ? scan.threads : [];
   if (!s.enabled || !threads.length) return;
 
@@ -338,7 +421,8 @@ async function alertNewMessage(th, s) {
   const where = th.isMarketplace ? 'Marketplace' : 'Messenger';
   const link = INBOX_URL + 't/' + th.tid + '/';
   const text =
-    '🔔 *Nuevo mensaje en ' + where + '*\n\n' +
+    '🔔 *Nuevo mensaje en ' + where + '*\n' +
+    accountLine(await accountName(s)) + '\n' +
     'De: ' + th.name + '\n' +
     '"' + th.text + '"\n\n' +
     'Responder: ' + link;
@@ -446,12 +530,22 @@ async function sendNotification(text, s) {
 async function handleTest() {
   const s = await getSettings();
   const where = s.channel === 'telegram' ? 'tu Telegram' : 'tu WhatsApp';
+  await refreshAccountFromTabs().catch(() => {});
+  const acct = await accountName(s);
   const r = await sendNotification(
-    '✅ *Prueba del Notificador Marketplace*\n\nSi lees esto, los avisos a tu teléfono ya funcionan.', s
+    '✅ *Prueba del Notificador Marketplace*\n' +
+    (accountLine(acct) || '📘 Cuenta de Facebook: (sin detectar)\n') +
+    '\nSi lees esto, los avisos a tu teléfono ya funcionan.', s
   );
   if (r.ok) {
     await setStatus({ lastError: '' });
-    return { ok: true, message: 'Prueba enviada a ' + where + '. Revisa tu teléfono (puede tardar unos segundos).' };
+    return {
+      ok: true,
+      message: 'Prueba enviada a ' + where + '. Revisa tu teléfono (puede tardar unos segundos). ' +
+        (acct
+          ? 'Cuenta de Facebook en los avisos: ' + acct + '.'
+          : '⚠️ No pude detectar el nombre de tu cuenta de Facebook: abre facebook.com/messages o escríbelo en "Nombre de tu cuenta".')
+    };
   }
   await setStatus({ lastError: r.message });
   return { ok: false, message: r.message };

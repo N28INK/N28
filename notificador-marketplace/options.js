@@ -1,9 +1,9 @@
-/* Notificador Marketplace v0.7 — options.js */
+/* Notificador Marketplace v0.8 — options.js */
 'use strict';
 
 const DEFAULTS = {
   enabled: true, marketplaceOnly: false, pcNotify: true, channel: 'whatsapp',
-  phone: '', apikey: '', tg_token: '', tg_chatid: ''
+  phone: '', apikey: '', tg_token: '', tg_chatid: '', accountName: ''
 };
 const $ = (id) => document.getElementById(id);
 
@@ -23,6 +23,18 @@ function status(msg, ok) {
   $('status').className = 'result ' + (ok ? 'ok' : 'bad');
 }
 
+// Dice si la cuenta de Facebook ya se detectó sola o si hay que escribirla.
+async function showAcctHint() {
+  const d = await chrome.storage.local.get('mn_account');
+  const found = d.mn_account && d.mn_account.name;
+  const manual = $('accountName').value.trim();
+  let msg;
+  if (manual) msg = '✍️ Se usará este nombre en los avisos.';
+  else if (found) msg = '✅ Detectada en Facebook: ' + found;
+  else msg = '⚠️ Todavía no la detecto. Abre facebook.com/messages, recarga esa pestaña y vuelve aquí; si sigue igual, escribe tu nombre en este campo.';
+  $('acctHint').textContent = msg;
+}
+
 async function load() {
   const s = await chrome.storage.local.get('mn_settings');
   const cfg = Object.assign({}, DEFAULTS, s.mn_settings || {});
@@ -30,12 +42,14 @@ async function load() {
   $('apikey').value = cfg.apikey;
   $('tg_token').value = cfg.tg_token;
   $('tg_chatid').value = cfg.tg_chatid;
+  $('accountName').value = cfg.accountName;
   $('enabled').checked = cfg.enabled !== false;
   $('marketplaceOnly').checked = cfg.marketplaceOnly === true;
   $('pcNotify').checked = cfg.pcNotify !== false;
   const radio = document.querySelector('input[name="channel"][value="' + (cfg.channel === 'telegram' ? 'telegram' : 'whatsapp') + '"]');
   if (radio) radio.checked = true;
   toggleSections();
+  showAcctHint();
 }
 
 // Devuelve un texto de error, o '' si la configuración del canal elegido está bien.
@@ -59,7 +73,8 @@ async function save() {
     tg_chatid: $('tg_chatid').value.trim(),
     enabled: $('enabled').checked,
     marketplaceOnly: $('marketplaceOnly').checked,
-    pcNotify: $('pcNotify').checked
+    pcNotify: $('pcNotify').checked,
+    accountName: $('accountName').value.replace(/\s+/g, ' ').trim().slice(0, 80)
   };
   $('phone').value = cfg.phone;
   const err = validate(cfg);
@@ -68,6 +83,7 @@ async function save() {
     return false;
   }
   await chrome.storage.local.set({ mn_settings: cfg });
+  showAcctHint();
   status('✅ Guardado.', true);
   return true;
 }
@@ -82,6 +98,7 @@ $('test').addEventListener('click', async () => {
   try {
     const r = await chrome.runtime.sendMessage({ type: 'MN_TEST' });
     status((r && r.ok ? '✅ ' : '❌ ') + ((r && r.message) || 'Sin respuesta.'), !!(r && r.ok));
+    showAcctHint();
   } catch (e) {
     status('❌ No se pudo pedir la prueba: ' + e, false);
   }
@@ -113,6 +130,8 @@ $('copyDiag').addEventListener('click', async () => {
   $('copyDiag').textContent = 'Copiado ✓';
   setTimeout(() => { $('copyDiag').textContent = 'Copiar'; }, 1500);
 });
+
+$('accountName').addEventListener('input', showAcctHint);
 
 document.querySelectorAll('input[name="channel"]').forEach((r) => r.addEventListener('change', toggleSections));
 

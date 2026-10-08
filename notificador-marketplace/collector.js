@@ -1,13 +1,15 @@
-/* Notificador Marketplace v0.7 — collector.js
- * Lee la lista de chats que se ve en la página (facebook.com/messages).
+/* Notificador Marketplace v0.8 — collector.js
+ * Lee la lista de chats que se ve en la página (facebook.com/messages) y el
+ * nombre de la cuenta de Facebook que tiene la sesión iniciada.
  * Lo cargan DOS caminos que comparten el mismo "mundo aislado" de la pestaña:
  *   - el content script (content_scripts en manifest.json), cada pocos segundos;
- *   - el background (chrome.scripting) cada minuto, por si Chrome durmió la pestaña.
- * Por eso todo el estado global se inicializa solo si no existe todavía.
+ *   - el background (chrome.scripting) cada 30 segundos, por si Chrome durmió la pestaña.
+ * Por eso todo el estado global se inicializa solo si no existe todavía, y
+ * la versión evita quedarse con un lector viejo tras actualizar la extensión.
  */
 (() => {
   'use strict';
-  if (typeof globalThis.mnCollect === 'function') return;
+  if (globalThis.mnCollectVersion === 8) return;
 
   // Líneas que no son parte del mensaje: hora relativa, "Activo ahora", marcas de no leído…
   const MONTH = '(?:ene|enero|feb|febrero|mar|marzo|abr|abril|may|mayo|jun|junio|jul|julio|ago|agosto|sep|sept|septiembre|oct|octubre|nov|noviembre|dic|diciembre|jan|january|february|march|apr|april|june|july|aug|august|september|october|november|dec|december)\\.?';
@@ -31,6 +33,71 @@
   const BLUE_RE = /0,\s*132,\s*255|24,\s*119,\s*242|8,\s*102,\s*255|59,\s*89,\s*152|0,\s*100,\s*209/;
 
   if (typeof globalThis.mnLastCount !== 'number') globalThis.mnLastCount = 0;
+  if (typeof globalThis.mnAccountTry !== 'number') {
+    globalThis.mnAccount = null;
+    globalThis.mnAccountTry = 0;
+    globalThis.mnAccountFails = 0;
+  }
+
+  /* ---- Nombre de la cuenta de Facebook donde llegan los mensajes ----
+   * Facebook deja los datos de quien inició sesión dentro de la propia página
+   * (módulo "CurrentUserInitialData"). Se lee de ahí: no se hace ninguna petición.
+   * Plan B: el número de usuario de la cookie c_user, buscado junto a un "name"
+   * en los datos de la página. Si nada funciona, queda el nombre escrito a mano
+   * en la Configuración.
+   */
+  const JSON_STR = '"((?:[^"\\\\]|\\\\.)*)"';
+  const USER_DATA_RE = new RegExp('"CurrentUserInitialData"[^{]{0,60}\\{[^{}]{0,400}?"NAME":' + JSON_STR);
+
+  function jsonText(raw) {
+    try { return JSON.parse('"' + raw + '"'); } catch (e) { return raw; }
+  }
+
+  function cleanAccount(n) {
+    return String(n || '')
+      .replace(/[\u0000-\u001f\u007f​-‏‪-‮⁦-⁩]+/g, ' ')
+      .replace(/\s+/g, ' ').trim().slice(0, 80);
+  }
+
+  function findAccount() {
+    const cookie = /(?:^|;\s*)c_user=(\d+)/.exec(document.cookie || '');
+    const uid = cookie ? cookie[1] : '';
+    const byId = uid
+      ? new RegExp('"name":' + JSON_STR + ',"id":"' + uid + '"|"id":"' + uid + '","name":' + JSON_STR)
+      : null;
+    let viaId = null;
+    for (const sc of document.querySelectorAll('script[type="application/json"]')) {
+      const t = sc.textContent;
+      if (!t) continue;
+      if (t.indexOf('"CurrentUserInitialData"') !== -1) {
+        const m = USER_DATA_RE.exec(t);
+        const name = m ? cleanAccount(jsonText(m[1])) : '';
+        if (name) return { name: name, source: 'CurrentUserInitialData' };
+      }
+      if (byId && !viaId && t.indexOf('"id":"' + uid + '"') !== -1) {
+        const m = byId.exec(t);
+        const name = m ? cleanAccount(jsonText(m[1] || m[2])) : '';
+        if (name) viaId = { name: name, source: 'id de usuario' };
+      }
+    }
+    return viaId;
+  }
+
+  // Devuelve { name, source } o null. Una vez encontrado se recuerda (si cambian
+  // de cuenta, Facebook recarga la página). Si no se encuentra, no se vuelve a
+  // buscar en cada vuelta: cada 20 s al principio y cada 2 min después.
+  globalThis.mnAccountInfo = function mnAccountInfo(force) {
+    if (globalThis.mnAccount) return globalThis.mnAccount;
+    const now = Date.now();
+    const wait = globalThis.mnAccountFails < 5 ? 20 * 1000 : 120 * 1000;
+    if (!force && now - globalThis.mnAccountTry < wait) return null;
+    globalThis.mnAccountTry = now;
+    let found = null;
+    try { found = findAccount(); } catch (e) { found = null; }
+    if (found) globalThis.mnAccount = found;
+    else globalThis.mnAccountFails++;
+    return found;
+  };
 
   function threadId(href) {
     const m = String(href || '').match(/\/t\/(\d+)/);
@@ -106,10 +173,14 @@
     // de golpe de todos los chats viejos sin leer.
     const warmup = globalThis.mnLastCount === 0;
     globalThis.mnLastCount = threads.length;
+    const acct = globalThis.mnAccountInfo(false);
     return {
       threads: threads,
       warmup: warmup,
-      openTid: focused ? threadId(location.pathname) : null
+      openTid: focused ? threadId(location.pathname) : null,
+      account: acct ? acct.name : '',
+      accountSource: acct ? acct.source : ''
     };
   };
+  globalThis.mnCollectVersion = 8;
 })();

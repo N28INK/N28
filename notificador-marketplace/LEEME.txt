@@ -1,4 +1,4 @@
-NOTIFICADOR MARKETPLACE v0.7 — LÉEME
+NOTIFICADOR MARKETPLACE v0.8 — LÉEME
 =====================================
 
 ¿Qué hace?
@@ -77,6 +77,34 @@ Déjalo vigilando
   chats", abre facebook.com/messages. Si pasan 10 minutos sin ver la lista,
   también te sale una notificación en el PC.
 
+Nombre de la cuenta de Facebook en los avisos (v0.8)
+----------------------------------------------------
+Cada aviso al teléfono dice en qué cuenta de Facebook llegó el mensaje:
+
+    🔔 Nuevo mensaje en Marketplace
+    📘 Cuenta de Facebook: Juan Pérez
+
+    De: Carlos Méndez
+    "Hola, ¿sigue disponible?"
+
+    Responder: https://www.facebook.com/messages/t/...
+
+- El nombre se detecta solo, leyendo los datos de la cuenta con sesión
+  iniciada que Facebook ya trae en la página. No se hace ninguna petición
+  extra ni se manda ese dato a ningún sitio salvo en tu propio aviso.
+- Para comprobarlo: icono de la extensión -> debe decir "Cuenta de Facebook
+  en los avisos: ..." o pulsa "Probar aviso": el mensaje de prueba trae
+  la línea de cuenta (o dice "(sin detectar)").
+- Si no la detecta (Facebook cambió algo) o quieres otro nombre, escríbelo
+  en Configuración -> "Nombre de tu cuenta de Facebook". El nombre escrito
+  a mano manda sobre el detectado. Sin nombre, el aviso sale igual, solo
+  que sin esa línea.
+- VARIAS CUENTAS de Facebook: usa un perfil de Chrome distinto para cada
+  cuenta (menú de tu foto arriba a la derecha de Chrome -> "Añadir perfil"),
+  inicia sesión en Facebook en cada uno e instala la extensión en cada perfil.
+  Pueden usar el mismo bot de Telegram o el mismo WhatsApp: en cada aviso
+  verás el nombre de la cuenta que recibió el mensaje.
+
 Cómo decide cuándo avisar
 -------------------------
 - Solo avisa de mensajes NUEVOS y SIN LEER, una vez por mensaje.
@@ -112,6 +140,16 @@ Si NO te llegan los avisos (pero sí la prueba)
 3. Para probar: pide a alguien que te escriba DESPUÉS de abrir la pestaña
    (los chats que ya estaban sin leer al abrirla no avisan), y no tengas
    ese chat abierto en pantalla.
+
+Cambios v0.8 (nombre de la cuenta)
+----------------------------------
+- Los avisos (mensaje nuevo, plan B por título y mensaje de prueba) incluyen
+  "Cuenta de Facebook: <nombre>".
+- Campo opcional en Configuración para escribir el nombre a mano.
+- El icono de la extensión muestra qué cuenta está detectando.
+- El diagnóstico explica por qué no se detecta, sin mostrar tu número de usuario.
+- Al actualizar, las pestañas de Facebook que ya estaban abiertas reciben el
+  lector nuevo solas (antes había que recargarlas).
 
 Cambios v0.7 (no llegaban los avisos)
 -------------------------------------
