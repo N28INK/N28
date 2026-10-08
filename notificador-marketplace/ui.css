@@ -25,3 +25,8 @@ body.options button { width: auto; padding: 10px 18px; font-size: 15px; margin-r
 ol li { margin-bottom: 8px; }
 code { background: #f0f2f5; padding: 2px 6px; }
 textarea { width: 100%; box-sizing: border-box; margin-top: 10px; font: 12px/1.4 monospace; }
+.events { margin-top: 8px; font-size: 11px; color: #444; }
+.events .ev { padding: 3px 0; border-top: 1px solid #eee; word-break: break-word; }
+.events .ev.err { color: #b00020; }
+.events .ev.ok { color: #137333; }
+body.options button + button { margin-top: 6px; }

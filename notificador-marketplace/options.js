@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.8 — options.js */
+/* Notificador Marketplace v0.9 — options.js */
 'use strict';
 
 const DEFAULTS = {
@@ -133,6 +133,25 @@ $('copyDiag').addEventListener('click', async () => {
 
 $('accountName').addEventListener('input', showAcctHint);
 
+// ---- Registro de eventos ----
+async function showLog() {
+  const d = await chrome.storage.local.get('mn_log');
+  const log = d.mn_log || [];
+  $('logOut').value = log.map((e) => new Date(e.t).toLocaleString('es') + '  [' + e.k + ']  ' + e.m).join('\n');
+  $('logOut').scrollTop = $('logOut').scrollHeight;
+}
+$('refreshLog').addEventListener('click', showLog);
+$('copyLog').addEventListener('click', async () => {
+  await navigator.clipboard.writeText($('logOut').value);
+  $('copyLog').textContent = 'Copiado ✓';
+  setTimeout(() => { $('copyLog').textContent = 'Copiar registro'; }, 1500);
+});
+$('clearLog').addEventListener('click', async () => {
+  await chrome.storage.local.remove('mn_log');
+  showLog();
+});
+
 document.querySelectorAll('input[name="channel"]').forEach((r) => r.addEventListener('change', toggleSections));
 
 load();
+showLog();

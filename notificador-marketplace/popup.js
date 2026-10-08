@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.8 — popup.js */
+/* Notificador Marketplace v0.9 — popup.js */
 'use strict';
 
 const INBOX_URL = 'https://www.facebook.com/messages/';
@@ -18,7 +18,7 @@ function setBox(id, text, kind) {
 }
 
 async function refresh() {
-  const d = await chrome.storage.local.get(['mn_settings', 'mn_status', 'mn_account']);
+  const d = await chrome.storage.local.get(['mn_settings', 'mn_status', 'mn_account', 'mn_log']);
   const cfg = d.mn_settings || {};
   const st = d.mn_status || {};
   const channel = cfg.channel === 'telegram' ? 'Telegram' : 'WhatsApp';
@@ -27,7 +27,7 @@ async function refresh() {
   if (!configured) setBox('config', '⚠️ Falta configurar. Abre Configuración y elige WhatsApp o Telegram.', 'warn');
   else if (cfg.enabled === false) setBox('config', '⏸️ Avisos APAGADOS (' + channel + ').', 'warn');
   else if (st.lastError) setBox('config', '❌ Último envío falló: ' + st.lastError, 'bad');
-  else setBox('config', '✅ Avisos activos por ' + channel + '.', 'ok');
+  else setBox('config', '✅ Avisos activos por ' + channel + (cfg.marketplaceOnly ? ' (solo chats de Marketplace)' : '') + '.', 'ok');
 
   const manual = String(cfg.accountName || '').trim();
   const found = d.mn_account && d.mn_account.name;
@@ -35,12 +35,27 @@ async function refresh() {
   else if (found) setBox('acct', '📘 Cuenta de Facebook en los avisos: ' + found, 'ok');
   else setBox('acct', '⚠️ No detecto el nombre de tu cuenta de Facebook. Abre facebook.com/messages y recarga la pestaña, o escríbelo en Configuración.', 'warn');
 
-  if (st.lastScanAt && Date.now() - st.lastScanAt < 3 * 60 * 1000) {
-    setBox('watch', '👀 Vigilando ' + st.threads + ' chats (' + (st.unread || 0) + ' sin leer, ' +
-      (st.marketplace || 0) + ' de Marketplace). Revisado ' + ago(st.lastScanAt) + '.', 'ok');
+  const KINDS = { messages: 'Messenger', marketplace: 'bandeja de Marketplace' };
+  // ¿La última vez que se miró no había ninguna pestaña de Facebook (y es más reciente que la última lectura)?
+  const noTabs = st.fbTabs === 0 && (st.fbTabsAt || 0) >= (st.lastScanAt || 0);
+  if (noTabs) {
+    setBox('watch', '⚠️ No hay ninguna pestaña de Facebook abierta. Pulsa "Abrir mis chats de Facebook".', 'warn');
+  } else if (st.lastScanAt && Date.now() - st.lastScanAt < 3 * 60 * 1000) {
+    setBox('watch', '👀 Vigilando ' + st.threads + ' chats' + (KINDS[st.kind] ? ' (' + KINDS[st.kind] + ')' : '') + ': ' +
+      (st.unread || 0) + ' sin leer, ' + (st.marketplace || 0) + ' de Marketplace. Revisado ' + ago(st.lastScanAt) + '.', 'ok');
   } else {
-    setBox('watch', '⚠️ No veo tu lista de chats. Pulsa "Abrir mis chats de Facebook" y deja esa pestaña abierta.', 'warn');
+    setBox('watch', '⚠️ No veo tu lista de chats. Abre facebook.com/messages o facebook.com/marketplace/inbox y deja esa pestaña abierta.', 'warn');
   }
+  // Últimos eventos (sin las lecturas de rutina): qué se avisó y por qué no se avisó.
+  const evs = (d.mn_log || []).filter((e) => e.k !== 'scan').slice(-3);
+  const box = document.getElementById('events');
+  box.textContent = '';
+  evs.forEach((e) => {
+    const row = document.createElement('div');
+    row.className = 'ev ' + e.k;
+    row.textContent = new Date(e.t).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) + '  ' + e.m;
+    box.appendChild(row);
+  });
   document.getElementById('last').textContent = st.lastAlertAt
     ? 'Último aviso: ' + (st.lastAlertName || '') + ', ' + ago(st.lastAlertAt) + '.'
     : '';

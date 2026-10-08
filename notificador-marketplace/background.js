@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.8 — service worker (background.js)
+/* Notificador Marketplace v0.9 — service worker (background.js)
  * Recibe la lista de chats (del content script, de su propio despertador de
  * 30 segundos o del cambio de título de la pestaña) y, cuando hay un mensaje
  * nuevo sin leer, te avisa al teléfono por WhatsApp (CallMeBot) o Telegram,
@@ -19,11 +19,42 @@ const TITLE_RESCAN_MS = 6 * 1000;
 const TOP_ROWS = 3;                          // filas de arriba de la lista = chats con actividad reciente
 const FB_URLS = ['https://www.facebook.com/*', 'https://www.messenger.com/*'];
 const INBOX_URL = 'https://www.facebook.com/messages/';
-const COOLDOWN_MS = 2 * 60 * 1000;          // máx. 1 aviso por chat cada 2 min
+const COOLDOWN_MS = 60 * 1000;               // máx. 1 aviso por chat cada minuto
+const COLLECTOR_VERSION = 9;                 // versión de collector.js que espera este background
+const MP_INBOX_URL = 'https://www.facebook.com/marketplace/inbox/';
+const LOG_MAX = 80;                          // eventos que guarda el registro
 const FORGET_MS = 30 * 24 * 60 * 60 * 1000; // olvidar chats sin actividad en 30 días
 const MAX_SEEN = 500;
 const NO_LIST_WARN_MIN = 10;                 // avisar si 10 min sin ver la lista de chats
 const NO_LIST_REPEAT_MS = 4 * 60 * 60 * 1000;
+
+/* ------------------------- registro ------------------------- *
+ * Guarda los últimos eventos (qué se leyó, por qué se avisó o NO se avisó, qué
+ * respondió Telegram/WhatsApp). Se ve en Configuración -> Registro. Sirve para
+ * encontrar el motivo cuando un aviso no llega. Nunca debe romper un aviso.
+ */
+let logChain = Promise.resolve();
+function logEvent(kind, msg) {
+  logChain = logChain.then(async () => {
+    try {
+      const d = await chrome.storage.local.get('mn_log');
+      const log = d.mn_log || [];
+      log.push({ t: Date.now(), k: kind, m: String(msg).replace(/\s+/g, ' ').slice(0, 240) });
+      if (log.length > LOG_MAX) log.splice(0, log.length - LOG_MAX);
+      await chrome.storage.local.set({ mn_log: log });
+    } catch (e) { /* el registro es opcional */ }
+  });
+  return logChain;
+}
+
+function shortText(t, n) {
+  t = String(t || '').replace(/\s+/g, ' ').trim();
+  return t.length > n ? t.slice(0, n - 1) + '…' : t;
+}
+
+function kindName(k) {
+  return k === 'messages' ? 'Messenger' : (k === 'marketplace' ? 'bandeja de Marketplace' : 'otra página de Facebook');
+}
 
 /* ------------------------- despertador ------------------------- */
 // Se asegura de que la alarma exista sin reiniciarla cada vez que el
@@ -59,7 +90,26 @@ async function keepaliveScan() {
   }
   // Todas a la vez y con tiempo límite: una pestaña congelada ya no bloquea a las demás.
   const found = await Promise.all(tabs.map(scanTab));
-  await noteListPresence(found.some(Boolean));
+  await setStatus({ fbTabs: tabs.length, fbTabsAt: Date.now() });
+  const seenList = found.some(Boolean);
+  if (!seenList) await logNoList(tabs);
+  await noteListPresence(seenList);
+}
+
+// Cada 10 min como mucho: dice qué páginas de Facebook hay abiertas y que ninguna muestra chats.
+let lastNoListLog = 0;
+async function logNoList(tabs) {
+  const now = Date.now();
+  if (now - lastNoListLog < 10 * 60 * 1000) return;
+  lastNoListLog = now;
+  if (!tabs.length) {
+    await logEvent('nolist', 'No hay ninguna pestaña de Facebook abierta.');
+    return;
+  }
+  const where = tabs.map((t) => {
+    try { return new URL(t.url).pathname.slice(0, 40); } catch (e) { return '?'; }
+  }).join(', ');
+  await logEvent('nolist', 'Hay ' + tabs.length + ' pestaña(s) de Facebook (' + where + ') pero ninguna muestra la lista de chats. Abre facebook.com/messages o facebook.com/marketplace/inbox.');
 }
 
 // Escanea una pestaña. Devuelve true si vio la lista de chats.
@@ -80,8 +130,17 @@ async function scanTab(tab) {
     }
   } catch (e) {
     /* pestaña cargando, congelada o sin acceso: se intenta en la próxima vuelta */
+    await logTabError(e);
   }
   return false;
+}
+
+let lastTabErrLog = 0;
+async function logTabError(e) {
+  const now = Date.now();
+  if (now - lastTabErrLog < 5 * 60 * 1000) return;
+  lastTabErrLog = now;
+  await logEvent('tab', 'No pude leer una pestaña de Facebook: ' + shortText(e && e.message ? e.message : e, 80));
 }
 
 // executeScript en una pestaña congelada por Chrome puede no responder nunca
@@ -96,7 +155,8 @@ function withTimeout(promise, ms) {
 async function collectFromTab(tabId) {
   const call = () => withTimeout(chrome.scripting.executeScript({
     target: { tabId: tabId },
-    func: () => (globalThis.mnCollectVersion === 8 ? globalThis.mnCollect() : null)
+    args: [COLLECTOR_VERSION],
+    func: (v) => (globalThis.mnCollectVersion === v ? globalThis.mnCollect() : null)
   }), SCRIPT_TIMEOUT_MS);
   let res = await call();
   if (!res || !res[0] || res[0].result == null) {
@@ -143,14 +203,21 @@ async function onTitle(tab, title) {
   try {
     const s = await getSettings();
     if (!s.enabled) return;
+    await logEvent('title', 'El título de la pestaña cambió a "' + shortText(title, 50) + '": releo la lista.');
     const since = Date.now();
     await scanTab(tab);
     await new Promise((r) => setTimeout(r, TITLE_RESCAN_MS));
     await scanTab(tab);
     await queue;
     const st = (await chrome.storage.local.get('mn_status')).mn_status || {};
-    if ((st.lastAlertAt || 0) >= since - COOLDOWN_MS) return; // ya se avisó por la lista
-    if (s.marketplaceOnly) return; // sin la lista no se sabe si es de Marketplace
+    if ((st.lastAlertAt || 0) >= since - COOLDOWN_MS) {
+      await logEvent('title', 'Ya se había avisado por la lista; no mando aviso general.');
+      return;
+    }
+    if (s.marketplaceOnly) {
+      await logEvent('title', 'No mando aviso general: tienes activado "solo Marketplace" (sin la lista no sé si es de Marketplace).');
+      return;
+    }
     const name = flash ? title.slice(0, flash.index).replace(/^\(\d+\)\s*/, '').trim() : '';
     await alertGeneric(name, count, s);
   } finally {
@@ -165,10 +232,16 @@ async function alertGeneric(name, count, s) {
     (name ? 'De: ' + name + '\n' : '') +
     (count ? 'Tienes ' + count + ' chat(s) sin leer.\n' : '') +
     '\nResponder: ' + INBOX_URL;
-  if (s.pcNotify) await notifyPC('mn-open-inbox-' + Date.now(), 'Nuevo mensaje en Facebook', name ? 'De: ' + name : 'Tienes mensajes sin leer.');
+  if (s.pcNotify) notifyPC('mn-open-inbox-' + Date.now(), 'Nuevo mensaje en Facebook', name ? 'De: ' + name : 'Tienes mensajes sin leer.');
+  const via = s.channel === 'telegram' ? 'Telegram' : 'WhatsApp';
   const r = await sendNotification(text, s);
-  if (r.ok) await setStatus({ lastAlertAt: Date.now(), lastAlertName: name || 'Facebook', lastError: '' });
-  else await setStatus({ lastError: r.message });
+  if (r.ok) {
+    await setStatus({ lastAlertAt: Date.now(), lastAlertName: name || 'Facebook', lastError: '' });
+    await logEvent('ok', 'Aviso general enviado por ' + via + ' (cambió el título de la pestaña)' + (name ? ': ' + shortText(name, 30) : '') + '.');
+  } else {
+    await setStatus({ lastError: r.message });
+    await logEvent('err', 'NO se pudo mandar el aviso general por ' + via + ': ' + shortText(r.message, 120));
+  }
 }
 
 // Si nadie tiene abierta la lista de chats, no hay nada que vigilar:
@@ -187,7 +260,7 @@ async function noteListPresence(found) {
     await notifyPC(
       'mn-open-inbox',
       'Notificador Marketplace: no estoy vigilando',
-      'No veo tu lista de chats abierta. Haz clic aquí para abrir facebook.com/messages y déjala abierta.'
+      'No veo tu lista de chats abierta. Haz clic aquí para abrir facebook.com/messages (o abre facebook.com/marketplace/inbox) y déjala abierta.'
     );
   }
 }
@@ -212,6 +285,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 chrome.notifications.onClicked.addListener((id) => {
   const m = /^mn-thread-(\d+)/.exec(id);
   if (m) chrome.tabs.create({ url: INBOX_URL + 't/' + m[1] + '/' });
+  else if (id.startsWith('mn-open-inbox-mp')) chrome.tabs.create({ url: MP_INBOX_URL });
   else if (id.startsWith('mn-open-inbox')) chrome.tabs.create({ url: INBOX_URL, pinned: true });
   chrome.notifications.clear(id);
 });
@@ -224,6 +298,9 @@ async function diagnose() {
     version: chrome.runtime.getManifest().version,
     canal: s.channel, activados: s.enabled, soloMarketplace: s.marketplaceOnly,
     estado: (await chrome.storage.local.get('mn_status')).mn_status || {},
+    pcNotify: s.pcNotify,
+    registro: ((await chrome.storage.local.get('mn_log')).mn_log || []).slice(-30).map((e) =>
+      new Date(e.t).toLocaleTimeString('es') + ' [' + e.k + '] ' + e.m),
     cuenta: {
       escritaAMano: cleanAccountName(s.accountName),
       detectada: (await chrome.storage.local.get('mn_account')).mn_account || null,
@@ -252,8 +329,18 @@ async function diagnose() {
             if (i !== -1) { trozo = t.slice(i, i + 220).replace(/\d{6,}/g, '#'); break; }
           }
           if (typeof globalThis.mnAccountInfo === 'function') globalThis.mnAccountInfo(true);
+          const roles = {};
+          ['row', 'listitem', 'option', 'grid', 'list', 'gridcell', 'link'].forEach((r) => {
+            roles[r] = document.querySelectorAll('[role="' + r + '"]').length;
+          });
+          // En la bandeja de Marketplace no hay enlaces /t/: se ve el texto tal cual lo lee la extensión.
+          const textoMuestra = /\/marketplace\/inbox/i.test(location.pathname)
+            ? (document.body.innerText || '').split('\n').map((x) => x.trim()).filter(Boolean).slice(0, 40).map((x) => x.slice(0, 80))
+            : undefined;
           return {
             visible: document.visibilityState, enlacesT: links.length, muestra: sample,
+            roles: roles, textoMuestra: textoMuestra,
+            permisoNotificacionesDeFacebook: typeof Notification !== 'undefined' ? Notification.permission : 'n/a',
             cuentaDebug: { scriptsJson: jsons.length, cookieC_user: /(?:^|;\s*)c_user=\d+/.test(document.cookie || ''), trozoCurrentUserInitialData: trozo },
             scan: typeof globalThis.mnCollect === 'function' ? globalThis.mnCollect() : 'sin lector'
           };
@@ -325,7 +412,8 @@ function accountLine(name) {
 async function accountFromTab(tabId) {
   const call = () => withTimeout(chrome.scripting.executeScript({
     target: { tabId: tabId },
-    func: () => (globalThis.mnCollectVersion === 8 ? globalThis.mnAccountInfo(true) : undefined)
+    args: [COLLECTOR_VERSION],
+    func: (v) => (globalThis.mnCollectVersion === v ? globalThis.mnAccountInfo(true) : undefined)
   }), SCRIPT_TIMEOUT_MS);
   let res = await call();
   if (!res || !res[0] || res[0].result === undefined) {
@@ -361,17 +449,30 @@ async function processScan(scan) {
   const now = Date.now();
   const toAlert = [];
 
+  if (scan.warmup) {
+    await logEvent('scan', 'Primera lectura de ' + kindName(scan.kind) + ': ' + threads.length +
+      ' chats memorizados sin avisar (' + threads.filter((t) => t.unread && !t.mine).length + ' sin leer).');
+  }
+
   for (const th of threads) {
     if (!th || !th.tid) continue;
+    const known = !!seen[th.tid];
     const prev = seen[th.tid] || {};
     // "handled" = último texto del que ya avisamos (o que decidimos no avisar).
     const cur = {
-      text: th.text, at: now, alertAt: prev.alertAt || 0,
-      handled: prev.handled || '', pending: !!prev.pending
+      text: th.text, age: typeof th.age === 'number' ? th.age : null, at: now,
+      alertAt: prev.alertAt || 0, handled: prev.handled || '', pending: !!prev.pending
     };
     seen[th.tid] = cur;
     const changed = prev.text !== cur.text; // incluye chat nunca visto
-    if (changed) cur.pending = true;
+    // Mismo texto, pero la hora del chat volvió a "ahora": llegó OTRO mensaje igual
+    // (por ejemplo dos "Hola" seguidos o dos "Envió una foto").
+    const again = known && !changed && cur.age !== null && typeof prev.age === 'number' && cur.age < prev.age;
+    if (changed || again) cur.pending = true;
+    if (again) cur.handled = '';
+    const fresh = changed || again;
+    const who = '"' + shortText(th.name, 30) + '"';
+    const skip = (why) => (fresh ? logEvent('skip', 'No aviso de ' + who + ': ' + why) : null);
 
     if (th.mine) { cur.handled = ''; cur.pending = false; continue; } // respondiste tú
     if (cur.text === cur.handled) { cur.pending = false; continue; }
@@ -381,17 +482,40 @@ async function processScan(scan) {
     //    suben el chat). La v0.6 dependía solo de la marca "sin leer", que
     //    cambia con el diseño de Facebook, y por eso podía no avisar nunca.
     const top = typeof th.pos === 'number' && th.pos < TOP_ROWS;
-    if (!th.unread && !(cur.pending && top)) { cur.pending = false; continue; }
-    if (scan.warmup ||                            // lista recién abierta: no avisar de chats viejos
-        th.tid === scan.openTid ||                // lo estás mirando ahora mismo
-        (s.marketplaceOnly && !th.isMarketplace)) {
+    if (!th.unread && !(cur.pending && top)) {
+      if (fresh && known) await skip('cambió pero no se ve sin leer ni subió a las primeras filas (puesto ' + (th.pos + 1) + ').');
+      cur.pending = false;
+      continue;
+    }
+    if (scan.warmup) {                            // lista recién abierta: no avisar de chats viejos
+      cur.handled = cur.text;
+      cur.pending = false;
+      continue;
+    }
+    if (th.tid === scan.openTid) {                // lo estás mirando ahora mismo
+      await skip('tienes ese chat abierto en pantalla.');
+      cur.handled = cur.text;
+      cur.pending = false;
+      continue;
+    }
+    if (th.src === 'texto' && scan.focused) {     // bandeja de Marketplace a la vista
+      await skip('estás mirando la bandeja de Marketplace en pantalla.');
+      cur.handled = cur.text;
+      cur.pending = false;
+      continue;
+    }
+    if (s.marketplaceOnly && !th.isMarketplace) {
+      await skip('no es de Marketplace y tienes activado "solo Marketplace" en Configuración.');
       cur.handled = cur.text;
       cur.pending = false;
       continue;
     }
     // Varios mensajes seguidos del mismo chat: un aviso, y el resto queda
     // pendiente hasta que pase el tiempo de espera.
-    if (now - cur.alertAt < COOLDOWN_MS) continue;
+    if (now - cur.alertAt < COOLDOWN_MS) {
+      await skip('ya se avisó de este chat hace menos de un minuto; se avisará del último mensaje enseguida.');
+      continue;
+    }
     cur.alertAt = now;
     cur.handled = cur.text;
     cur.pending = false;
@@ -407,7 +531,10 @@ async function processScan(scan) {
   const unreadCount = threads.filter((t) => t.unread && !t.mine).length;
   const mpCount = threads.filter((t) => t.isMarketplace).length;
   await chrome.storage.local.set({ mn_seen: pruned });
-  await setStatus({ lastScanAt: now, threads: threads.length, unread: unreadCount, marketplace: mpCount });
+  await setStatus({
+    lastScanAt: now, threads: threads.length, unread: unreadCount, marketplace: mpCount,
+    kind: scan.kind || '', source: scan.source || ''
+  });
 
   for (const th of toAlert) await alertNewMessage(th, s);
 }
@@ -419,7 +546,7 @@ async function setStatus(patch) {
 
 async function alertNewMessage(th, s) {
   const where = th.isMarketplace ? 'Marketplace' : 'Messenger';
-  const link = INBOX_URL + 't/' + th.tid + '/';
+  const link = th.link || (INBOX_URL + 't/' + th.tid + '/');
   const text =
     '🔔 *Nuevo mensaje en ' + where + '*\n' +
     accountLine(await accountName(s)) + '\n' +
@@ -427,16 +554,22 @@ async function alertNewMessage(th, s) {
     '"' + th.text + '"\n\n' +
     'Responder: ' + link;
 
+  // El teléfono es lo importante: la notificación del PC va aparte, sin esperarla,
+  // para que si Windows/Chrome la retrasan o la bloquean no se retrase el aviso.
   if (s.pcNotify) {
-    await notifyPC('mn-thread-' + th.tid + '-' + Date.now(), 'Nuevo mensaje de ' + th.name, th.text);
+    const id = th.src === 'texto' ? 'mn-open-inbox-mp-' : 'mn-thread-' + th.tid + '-';
+    notifyPC(id + Date.now(), 'Nuevo mensaje de ' + th.name, th.text);
   }
+  const via = s.channel === 'telegram' ? 'Telegram' : 'WhatsApp';
   const r = await sendNotification(text, s);
   if (r.ok) {
     await setStatus({ lastAlertAt: Date.now(), lastAlertName: th.name, lastError: '' });
+    await logEvent('ok', 'Aviso enviado por ' + via + ': "' + shortText(th.name, 30) + '" — ' + shortText(th.text, 50));
   } else {
     await setStatus({ lastError: r.message });
+    await logEvent('err', 'NO se pudo avisar por ' + via + ' de "' + shortText(th.name, 30) + '": ' + shortText(r.message, 120));
     if (r.reason !== 'missing-config') {
-      await notifyPC('mn-error-' + Date.now(), 'No se pudo avisar a tu teléfono', r.message);
+      notifyPC('mn-error-' + Date.now(), 'No se pudo avisar a tu teléfono', r.message);
     }
   }
 }

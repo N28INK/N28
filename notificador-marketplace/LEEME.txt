@@ -1,4 +1,4 @@
-NOTIFICADOR MARKETPLACE v0.8 — LÉEME
+NOTIFICADOR MARKETPLACE v0.9 — LÉEME
 =====================================
 
 ¿Qué hace?
@@ -132,6 +132,12 @@ Límites honestos
 
 Si NO te llegan los avisos (pero sí la prueba)
 ----------------------------------------------
+0. Mira el REGISTRO: icono de la extensión -> "No me llegan avisos
+   (diagnóstico)" -> sección "Registro de eventos". Dice, por cada chat que
+   cambió, si se avisó o POR QUÉ NO ("tienes ese chat abierto", "solo
+   Marketplace está activado", "ya se avisó hace menos de un minuto"…) y
+   qué respondió Telegram/WhatsApp. Pulsa "Copiar registro" para mandarlo.
+   El icono también muestra los últimos eventos.
 1. Comprueba que la pestaña abierta es facebook.com/messages (la lista de
    chats a la izquierda), no el inicio de Facebook.
 2. Clic en el icono de la extensión → "No me llegan avisos (diagnóstico)"
@@ -140,6 +146,22 @@ Si NO te llegan los avisos (pero sí la prueba)
 3. Para probar: pide a alguien que te escriba DESPUÉS de abrir la pestaña
    (los chats que ya estaban sin leer al abrirla no avisan), y no tengas
    ese chat abierto en pantalla.
+
+Cambios v0.9 (avisos más seguros y con explicación)
+---------------------------------------------------
+- Registro de eventos: qué se leyó, qué se avisó, qué NO se avisó y por qué.
+- Bandeja de Marketplace (facebook.com/marketplace/inbox): ahora también se
+  lee (antes solo facebook.com/messages). Tampoco avisa si la tienes a la
+  vista y enfocada.
+- Un mensaje IGUAL al anterior en el mismo chat ("Hola" otra vez) ahora avisa:
+  se nota porque la hora del chat vuelve a "ahora".
+- Si Facebook redibuja la lista y queda vacía un instante, ya no se "traga"
+  el mensaje que llegó en ese momento.
+- La notificación del PC va aparte: si Windows/Chrome la bloquean o la
+  retrasan, el aviso al teléfono sale igual.
+- Espera por chat: 1 minuto (antes 2).
+- Se quita la etiqueta oculta "Unread message:" del texto del aviso.
+- El icono dice qué tipo de página lee y si no hay pestaña de Facebook.
 
 Cambios v0.8 (nombre de la cuenta)
 ----------------------------------
