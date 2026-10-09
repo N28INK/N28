@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.14 — replier.js
+/* Notificador Marketplace v0.15 — replier.js
  * Escribe (y envía) en un chat de Messenger un texto —y/o pega una foto— que TÚ
  * mandaste a mano en Telegram. Solo lo inyecta el background, en pestañas de
  * Facebook, cuando llega tu respuesta desde tu propio Telegram. No envía nada
@@ -140,6 +140,36 @@
     } catch (e) { /* nada que hacer */ }
   }
 
+  /* ---- "borrador" que dejamos NOSOTROS mismos a medias ----
+   * Si un intento anterior se quedó pegado (por ejemplo, Chrome frenó los
+   * tiempos de esta pestaña por estar en segundo plano o la ventana minimizada,
+   * y el intento tardó más de lo que el background esperó), el texto y/o la
+   * foto pueden quedar a medio escribir en la caja. El siguiente intento a ese
+   * mismo chat los veía como "un borrador tuyo" y se negaba a tocarlos para
+   * siempre. Aquí se recuerda, por chat, qué dejamos nosotros la última vez
+   * (texto y si había foto) para poder limpiarlo solos la próxima vez — un
+   * borrador de verdad (que tú escribiste a mano) nunca coincide con esto y
+   * se sigue respetando igual que antes.
+   */
+  const OWN_DRAFT_TTL_MS = 10 * 60 * 1000; // más viejo que esto, no se confía en que sea nuestro
+  const ownDraftKey = (tid) => 'mn_owndraft_' + tid;
+
+  async function getOwnDraft(tid) {
+    try {
+      const k = ownDraftKey(tid);
+      const d = await chrome.storage.session.get(k);
+      const rec = d[k];
+      if (rec && Date.now() - rec.at < OWN_DRAFT_TTL_MS) return rec;
+    } catch (e) { /* sin esto, se trata como si no hubiera rastro (más conservador) */ }
+    return null;
+  }
+  async function setOwnDraft(tid, text, hasImage) {
+    try { await chrome.storage.session.set({ [ownDraftKey(tid)]: { text: String(text || ''), hasImage: !!hasImage, at: Date.now() } }); } catch (e) { /* best-effort */ }
+  }
+  async function clearOwnDraft(tid) {
+    try { await chrome.storage.session.remove(ownDraftKey(tid)); } catch (e) { /* best-effort */ }
+  }
+
   const SEND_LABEL = /^(?:enviar|send|press enter to send|presiona (?:intro|enter) para enviar|pulsa (?:intro|enter) para enviar)$/i;
 
   function findSendButton(c) {
@@ -193,7 +223,23 @@
     await wait(400);
     if (!threadRe.test(location.pathname)) return { ok: false, stage: 'abrir', detail: 'el chat abierto cambió; no escribo nada' };
     composer = findComposer() || composer; // revalidar tras la espera
-    if (composerText(composer)) return { ok: false, stage: 'borrador', detail: 'ya hay un texto escrito en ese chat (un borrador); no lo piso' };
+    const curText = composerText(composer);
+    const curPreview = findAttachmentPreview(composer);
+    if (curText || curPreview) {
+      const own = await getOwnDraft(tid);
+      if (own && squash(curText) === squash(own.text)) {
+        // Es justo lo que ESTE proceso dejó a medias en un intento anterior
+        // (coincide el texto exacto): se limpia y se sigue, en vez de negarse.
+        if (curPreview) { try { curPreview.remove(); } catch (e) { /* no pasa nada si no se puede */ } }
+        clearComposer(composer);
+        await wait(150);
+      } else {
+        return { ok: false, stage: 'borrador', detail: 'ya hay ' + (curPreview ? 'una foto y/o texto' : 'un texto') + ' escrito en ese chat (un borrador); no lo piso' };
+      }
+    }
+    // A partir de aquí vamos a tocar la caja: se anota qué vamos a dejar, para
+    // que si ESTE intento se queda a medias, el próximo lo reconozca y limpie.
+    await setOwnDraft(tid, text, !!image);
 
     // 3. pegar la foto, si hay
     let preview = null;
@@ -228,6 +274,7 @@
       }
       if (squash(composer.innerText || composer.textContent) !== squash(text)) {
         clearComposer(composer);
+        await clearOwnDraft(tid); // la caja quedó limpia: no hay nada que el próximo intento deba perdonar
         return { ok: false, stage: 'escribir', detail: 'Facebook no aceptó el texto en la caja' };
       }
     }
@@ -269,6 +316,7 @@
     // (el "enviado" a veces llega un instante después de vaciar la caja) puede
     // mezclarse con el chat siguiente.
     await wait(1200);
+    await clearOwnDraft(tid); // se envió: no queda nada pendiente que cuidar en este chat
     return { ok: true, sent: true, stage: 'enviado' };
   };
 

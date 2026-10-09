@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.14 — service worker (background.js)
+/* Notificador Marketplace v0.15 — service worker (background.js)
  * Recibe la lista de chats (del content script, de su propio despertador de
  * 30 segundos o del cambio de título de la pestaña) y, cuando hay un mensaje
  * nuevo sin leer, te avisa al teléfono por WhatsApp (CallMeBot) o Telegram,
@@ -80,11 +80,21 @@ async function ensureAlarm() {
 }
 ensureAlarm();
 
+// Por defecto, chrome.storage.session SOLO lo puede leer/escribir el
+// background: replier.js (que corre dentro de la pestaña de Facebook) lo
+// necesita para recordar, por chat, qué dejó a medias un intento anterior
+// (ver "borrador" en replier.js). Sin esto, esa memoria nunca se guarda.
+function allowSessionStorageInPages() {
+  chrome.storage.session.setAccessLevel({ accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS' }).catch(() => {});
+}
+allowSessionStorageInPages();
+
 chrome.runtime.onInstalled.addListener((details) => {
   ensureAlarm();
+  allowSessionStorageInPages();
   if (details.reason === 'install') chrome.runtime.openOptionsPage();
 });
-chrome.runtime.onStartup.addListener(ensureAlarm);
+chrome.runtime.onStartup.addListener(() => { ensureAlarm(); allowSessionStorageInPages(); });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm && alarm.name === ALARM) {
@@ -1000,16 +1010,23 @@ function waitTabComplete(tabId, ms) {
 }
 
 async function runReply(tabId, tid, text, send, image) {
+  // Una foto implica más pasos (pegarla, esperar su vista previa, confirmar el
+  // envío) y, si la pestaña de Facebook está en segundo plano o la ventana
+  // minimizada, Chrome frena sus temporizadores y todo tarda más de lo normal:
+  // se le da más margen antes de darla por perdida.
+  const replyTimeoutMs = image ? 100 * 1000 : 60 * 1000;
   try {
     await withTimeout(chrome.scripting.executeScript({ target: { tabId: tabId }, files: ['replier.js'] }), SCRIPT_TIMEOUT_MS);
     const res = await withTimeout(chrome.scripting.executeScript({
       target: { tabId: tabId },
       args: [{ tid: tid, text: text, send: send, image: image || null }],
       func: (o) => globalThis.mnReply(o)
-    }), 60 * 1000);
+    }), replyTimeoutMs);
     return (res && res[0] && res[0].result) || { ok: false, stage: 'script', detail: 'la pestaña de Facebook no respondió.' };
   } catch (e) {
-    return { ok: false, stage: 'script', detail: 'no pude hablar con la pestaña de Facebook (' + shortText(e && e.message ? e.message : e, 60) + ').' };
+    const detail = 'no pude hablar con la pestaña de Facebook (' + shortText(e && e.message ? e.message : e, 60) + ')' +
+      (/timeout/i.test(String(e && e.message)) ? '. Si la ventana de Chrome estaba minimizada o esa pestaña en segundo plano, puede tardar de más; déjala visible y vuelve a intentar.' : '.');
+    return { ok: false, stage: 'script', detail: detail };
   }
 }
 

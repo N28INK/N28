@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.14 — popup.js */
+/* Notificador Marketplace v0.15 — popup.js */
 'use strict';
 
 const INBOX_URL = 'https://www.facebook.com/messages/';
