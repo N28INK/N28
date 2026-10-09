@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.18 — replier.js
+/* Notificador Marketplace v0.19 — replier.js
  * Escribe (y envía) en un chat de Messenger un texto —y/o pega una foto— que TÚ
  * mandaste a mano en Telegram. Solo lo inyecta el background, en pestañas de
  * Facebook, cuando llega tu respuesta desde tu propio Telegram. No envía nada
@@ -10,10 +10,14 @@
  *      que no sea nuestro, parar ahí (es un borrador tuyo: no se toca);
  *   3. si hay foto, pegarla (como si la copiaras y la pegaras en la caja);
  *   4. escribir el texto probando, en orden, hasta que la caja tenga EXACTAMENTE el
- *      mensaje: A) execCommand de una vez (rápido), C) evento beforeinput de una
- *      vez, D) letra por letra con pausas cortas (lo más lento, pero probado en
- *      v0.14). Antes de pasar al siguiente método la caja se VACÍA y se comprueba
- *      que quedó vacía. El método que funcionó se recuerda para la próxima vez;
+ *      mensaje. Con `humanMs` (lo normal desde v0.19) se escribe LETRA POR LETRA a
+ *      ritmo humano (método H) de modo que todo el proceso —desde que empieza
+ *      hasta que se pulsa Enviar— dure justo `humanMs` (el background sortea
+ *      entre 10 y 20 s); si H falla se baja a A y C. Sin `humanMs`: A) execCommand
+ *      de una vez (rápido), C) evento beforeinput de una vez, D) letra por letra con
+ *      pausas cortas (probado en v0.14). Antes de pasar al siguiente método la caja
+ *      se VACÍA y se comprueba que quedó vacía. El método rápido que funcionó se
+ *      recuerda para la próxima vez;
  *   5. pulsar Enviar y confirmar. Si no se puede saber con certeza qué pasó, se
  *      detiene con "incierto" en vez de reintentar a ciegas (para no duplicar).
  * Si algo falla, no sigue: devuelve en qué paso falló. Si cambiaste de chat en Facebook
@@ -37,7 +41,7 @@
  */
 (() => {
   'use strict';
-  if (globalThis.mnReplyVersion === 5) return;
+  if (globalThis.mnReplyVersion === 6) return;
 
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const rand = (a, b) => a + Math.random() * (b - a);
@@ -144,25 +148,110 @@
     }
   }
 
-  // Método D (el más lento, pero es el que funcionó siempre en v0.14): letra por
-  // letra, con un respiro corto entre una y otra. Devuelve false si a mitad de
-  // camino cambió el chat o desapareció la caja.
-  async function insertD(c, text, threadRe) {
+  // Ceder el turno SIN temporizadores: Chrome frena los temporizadores de una
+  // pestaña oculta (a ~1 s cada uno), pero no los mensajes de un MessageChannel.
+  const yieldTask = () => new Promise((resolve) => {
+    const ch = new MessageChannel();
+    ch.port1.onmessage = () => { ch.port1.close(); resolve(); };
+    ch.port2.postMessage(0);
+  });
+  // Espera hasta una hora de performance.now(); si ya pasó, no espera nada. (Si la
+  // pestaña está frenada, se llega tarde y las letras siguientes salen seguidas
+  // hasta alcanzar el horario: la duración total casi no cambia.)
+  const sleepUntil = async (at) => { const d = at - performance.now(); if (d > 2) await wait(d); };
+
+  // Plan de tecleo "humano" para que TODO dure `totalMs` (desde ahora hasta pulsar
+  // Enviar): una pausa para "leer y pensar", las letras a ritmo irregular (más
+  // lento tras una palabra, más tras una coma o un punto, alguna duda suelta) y
+  // una pausa final para "releer" antes de enviar. Un mensaje corto no se teclea
+  // más lento de la cuenta: lo que sobra se reparte en las pausas.
+  //   due[k]  = ms (desde el inicio del plan) a los que sale el carácter k
+  //             (los saltos de línea cuentan como un carácter);
+  //   sendAt  = ms a los que se debe pulsar Enviar.
+  const MAX_MS_PER_CHAR = 450; // tecleo muy pausado, de una sola mano
+  const MIN_MS_PER_CHAR = 8;   // tope de velocidad para textos larguísimos
+  function humanPlan(text, totalMs) {
+    const toks = Array.from(String(text)); // por carácter real (un emoji no se parte en dos)
+    const n = toks.length;
+    totalMs = Math.max(0, totalMs);
+    let lead = Math.min(rand(900, 2200), totalMs * 0.25);
+    let trail = Math.min(rand(600, 1500), totalMs * 0.2);
+    let span = totalMs - lead - trail;
+    const gaps = Math.max(0, n - 1);
+    const maxSpan = gaps * MAX_MS_PER_CHAR;
+    if (span > maxSpan) { // mensaje corto: no se escribe lento, se espera más antes y después
+      const extra = span - maxSpan;
+      lead += extra * 0.7;
+      trail += extra * 0.3;
+      span = maxSpan;
+    }
+    span = Math.max(span, gaps * MIN_MS_PER_CHAR);
+    const w = toks.map((ch, i) => {
+      let x = rand(0.55, 1.7);
+      const prev = i ? toks[i - 1] : '';
+      if (prev === ' ') x *= rand(1.0, 1.6);
+      if (/[,.;:!?¿¡]/.test(prev)) x *= rand(1.8, 3.2);
+      if (prev === '\n') x *= rand(2, 3.5);
+      if (Math.random() < 0.025) x += rand(4, 9); // una duda
+      return x;
+    });
+    let sum = 0;
+    for (let i = 1; i < n; i++) sum += w[i];
+    const scale = sum ? span / sum : 0;
+    const due = [];
+    let t = lead;
+    for (let i = 0; i < n; i++) { if (i) t += w[i] * scale; due.push(t); }
+    const sendAt = Math.max(totalMs, t + trail * 0.5);
+    return { due: due, sendAt: sendAt, start: performance.now() };
+  }
+
+  // Método D (letra por letra; probado en v0.14): con `plan` (método H) cada letra
+  // sale a su hora; sin él, con un respiro corto entre una y otra. Devuelve false
+  // si a mitad de camino cambió el chat o desapareció la caja, y 'rechazado' si
+  // (en el modo con horario) la primera letra no aparece en la caja: así no se
+  // gastan 10-20 s tecleando en un editor que no acepta este método.
+  async function insertD(c, text, threadRe, plan) {
     await placeCaret(c);
     const lines = String(text).split('\n');
     const short = String(text).length <= 300;
+    let k = 0; // posición en el plan (los saltos de línea cuentan)
+    const alive = () => {
+      if (!threadRe.test(location.pathname)) return false;
+      if (!c.isConnected) { // Facebook rehízo la caja a mitad de camino: se busca la nueva (del mismo chat)
+        const n = findComposer();
+        if (!n) return false;
+        c = n;
+      }
+      return true;
+    };
+    // Si algo le quitó el cursor a la caja (p. ej. Facebook enfocó otra cosa), se
+    // devuelve al final del texto; si no, se escribiría en el vacío.
+    const keepCaret = async () => {
+      const s = getSelection();
+      if (document.activeElement !== c || !s || !s.rangeCount || !c.contains(s.anchorNode)) await placeCaret(c);
+    };
     for (let li = 0; li < lines.length; li++) {
-      if (!threadRe.test(location.pathname) || !c.isConnected) return false;
-      if (li) await lineBreak(c);
-      const line = lines[li];
-      for (let i = 0; i < line.length; i++) {
-        if (!threadRe.test(location.pathname) || !c.isConnected) return false;
-        const ch = line[i];
+      if (!alive()) return false;
+      if (li) {
+        if (plan) await sleepUntil(plan.start + plan.due[k]);
+        if (!alive()) return false;
+        await lineBreak(c);
+        k++;
+      }
+      for (const ch of lines[li]) {
+        if (plan) await sleepUntil(plan.start + plan.due[k]);
+        if (!alive()) return false;
+        if (plan) await keepCaret();
         c.dispatchEvent(new KeyboardEvent('keydown', { key: ch, bubbles: true, cancelable: true }));
         c.dispatchEvent(new InputEvent('beforeinput', { data: ch, inputType: 'insertText', bubbles: true, cancelable: true }));
         document.execCommand('insertText', false, ch);
         c.dispatchEvent(new KeyboardEvent('keyup', { key: ch, bubbles: true, cancelable: true }));
-        await wait(short ? rand(10, 24) : rand(5, 10));
+        k++;
+        if (!plan) await wait(short ? rand(10, 24) : rand(5, 10));
+        else {
+          await (document.visibilityState === 'hidden' ? yieldTask() : wait(rand(6, 12)));
+          if (k === 1 && !(await waitFor(() => boxCanon(c).length > 0, 1500, 40))) return 'rechazado';
+        }
       }
     }
     return true;
@@ -292,10 +381,13 @@
     const want = canon(text);
     const image = opts && opts.image && opts.image.dataUrl ? opts.image : null;
     const send = !(opts && opts.send === false);
+    // Duración total deseada (ms) de la respuesta de texto, desde que empieza hasta
+    // que se pulsa Enviar. 0/ausente = rápido (v0.18).
+    const humanMs = text ? Math.min(Math.max(0, Number(opts && opts.humanMs) || 0), 60000) : 0;
     // Tiempo máximo ANTES de enviar. Después de eso, si el background ya se
     // rindió, lo peor que puede pasar es que este envío salga igual; por eso
     // antes de tocar el botón se comprueba que todavía estamos a tiempo.
-    const preSendBudget = image ? 60000 : 30000;
+    const preSendBudget = (image ? 60000 : 30000) + humanMs;
     if (!tid || (!text && !image)) return done({ ok: false, stage: 'datos', detail: 'falta el chat, y no hay texto ni foto' });
     const threadRe = new RegExp('/t/' + tid + '(?:/|$|\\?)');
 
@@ -363,8 +455,11 @@
     // método hasta que la caja tenga EXACTAMENTE el mensaje. Entre un método y
     // el siguiente la caja se vacía y se comprueba que quedó vacía.
     let usedMethod = null;
+    let plan = null; // horario de tecleo del método H
     if (text) {
-      const order = await methodOrder();
+      // Con tiempo humano: primero letra por letra a ritmo humano (H); si Facebook
+      // no lo acepta, A y C (rápidos) para que el mensaje salga igual.
+      const order = humanMs ? ['H', 'A', 'C'] : await methodOrder();
       let lastSeen = '';
       for (let i = 0; i < order.length && !usedMethod; i++) {
         const m = order[i];
@@ -377,14 +472,18 @@
         }
         if (m === 'A') await insertA(composer, text);
         else if (m === 'C') await insertC(composer, text);
-        else if (!(await insertD(composer, text, threadRe))) {
-          lastSeen = boxCanon(composer);
-          await setOwnDraft(tid, text, !!image, 'sucio', lastSeen);
-          return done({ ok: false, stage: 'escribir', detail: 'cambiaste de chat en Facebook mientras escribía; dejé de escribir' });
+        else {
+          const d = await insertD(composer, text, threadRe, m === 'H' ? (plan = humanPlan(text, humanMs - (Date.now() - t0))) : null);
+          if (d === false) {
+            lastSeen = boxCanon(composer);
+            await setOwnDraft(tid, text, !!image, 'sucio', lastSeen);
+            return done({ ok: false, stage: 'escribir', detail: 'cambiaste de chat en Facebook mientras escribía; dejé de escribir' });
+          }
+          // d === 'rechazado': la caja no aceptó la primera letra; abajo no coincidirá y se pasa al método siguiente.
         }
         if (!threadRe.test(location.pathname)) return done({ ok: false, stage: 'abrir', detail: 'el chat abierto cambió justo al terminar de escribir; no envío' });
         composer = findComposer() || composer;
-        const matched = await waitFor(() => boxCanon(composer) === want, m === 'D' ? 1500 : 800, 50);
+        const matched = await waitFor(() => boxCanon(composer) === want, (m === 'D' || m === 'H') ? 1500 : 800, 50);
         lastSeen = boxCanon(composer);
         if (matched) usedMethod = m;
       }
@@ -400,11 +499,20 @@
             (cleaned ? '' : '. No pude vaciar la caja: bórrala a mano (Ctrl+A y Supr)')
         });
       }
-      rememberMethod(usedMethod);
+      if (usedMethod !== 'H') rememberMethod(usedMethod); // H es el modo "humano"; la memoria es del modo rápido
       lap('escribir ' + usedMethod);
     }
     await setOwnDraft(tid, text, !!image, 'escrito');
     if (!send) return done({ ok: true, sent: false, stage: image ? 'listo-con-foto' : 'escrito', metodo: usedMethod });
+
+    // Pausa de "releer" antes de enviar, para que la respuesta completa dure lo
+    // sorteado (solo si se escribió a ritmo humano; si H falló y se usó otro
+    // método, ya se pasó de la hora y no se espera más).
+    if (plan && usedMethod === 'H') {
+      await sleepUntil(plan.start + plan.sendAt);
+      composer = findComposer() || composer; // por si Facebook rehízo la caja durante la pausa
+      lap('releer');
+    }
 
     // Si ya pasó demasiado tiempo, es mejor NO enviar: el background pudo
     // haberse rendido y avisado, y un envío tardío acabaría duplicando.
@@ -496,5 +604,5 @@
     return String(e && e.message ? e.message : e).slice(0, 80);
   }
 
-  globalThis.mnReplyVersion = 5;
+  globalThis.mnReplyVersion = 6;
 })();

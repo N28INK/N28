@@ -1,4 +1,4 @@
-NOTIFICADOR MARKETPLACE v0.18 — LÉEME
+NOTIFICADOR MARKETPLACE v0.19 — LÉEME
 =====================================
 
 ¿Qué hace?
@@ -179,6 +179,35 @@ Si NO te llegan los avisos (pero sí la prueba)
 3. Para probar: pide a alguien que te escriba DESPUÉS de abrir la pestaña
    (los chats que ya estaban sin leer al abrirla no avisan), y no tengas
    ese chat abierto en pantalla.
+
+Cambios v0.19 (las respuestas se escriben letra por letra, entre 10 y 20 segundos)
+------------------------------------------------------------------------------------
+- Cada respuesta de TEXTO (o el pie de una foto) se teclea ahora letra por letra y
+  tarda un tiempo que se sortea en cada respuesta, siempre entre 10 y 20 segundos
+  contados desde que la mandas en Telegram hasta que se pulsa Enviar en Messenger.
+  Dos respuestas seguidas casi nunca tardan lo mismo.
+- No es un teclear parejo: hay una pausa al principio ("leer y pensar"), las letras
+  salen a ritmo irregular (más lento tras cada palabra, más tras una coma o un punto,
+  alguna duda suelta) y una pausa final antes de enviar ("releer"). Un mensaje muy
+  corto no se escribe eterno: lo que sobra se reparte en las pausas. Un texto muy
+  largo se acelera para no pasar de 20 segundos.
+- Una foto SIN texto no espera: sale como antes.
+- Si Facebook no acepta el tecleo letra por letra, se nota con la primera letra
+  (no se gastan 10-20 s) y baja solo a los métodos rápidos de la v0.18, que
+  siguen dejando el texto exacto una sola vez.
+- Si Chrome frena la pestaña (ventana minimizada o tapada), el tecleo se pone al
+  día por tandas en vez de tardar un segundo por letra; la duración total casi no cambia.
+- Si Facebook rehace la caja a mitad (o cambias de chat), no se manda nada a medias:
+  o termina el mensaje completo y exacto, o se detiene.
+- Los candados contra repetidos siguen igual: si mandas lo mismo dos o tres veces
+  mientras se está escribiendo (o Telegram lo vuelve a entregar), sale UNA sola vez.
+- Los tiempos máximos de espera (el de "incierto" y el de "tardé demasiado y no lo
+  envié") se alargaron lo que dura el tecleo, para que una respuesta lenta a propósito
+  no se confunda con una que se colgó.
+- El rango está al principio de background.js (TYPE_MIN_MS y TYPE_MAX_MS, en
+  milisegundos; con las dos en 0 vuelve a contestar al instante).
+- El registro muestra el tiempo real de cada respuesta, p. ej.
+  "(14.8 s: abrir 0.6s · caja 0.4s · escribir H 12.9s · releer 0.8s · enviar 0.4s)".
 
 Cambios v0.18 (la v0.17 duplicaba el texto en la caja; sin respuestas repetidas)
 ---------------------------------------------------------------------------------

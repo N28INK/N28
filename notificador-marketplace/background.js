@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.18 — service worker (background.js)
+/* Notificador Marketplace v0.19 — service worker (background.js)
  * Recibe la lista de chats (del content script, de su propio despertador de
  * 30 segundos o del cambio de título de la pestaña) y, cuando hay un mensaje
  * nuevo sin leer, te avisa al teléfono por WhatsApp (CallMeBot) o Telegram,
@@ -938,6 +938,20 @@ const DONE_MSGS_KEY = 'mn_done_msgs';
 const RECENT_SENDS_KEY = 'mn_recent_sends';
 const DUP_WINDOW_MS = 20 * 1000;
 
+/* ---- cuánto tarda en "escribirse" cada respuesta de texto ----
+ * Cada respuesta se teclea LETRA POR LETRA y todo el proceso (desde que empieza
+ * hasta que se pulsa Enviar) dura un tiempo que se sortea, distinto cada vez,
+ * entre TYPE_MIN_MS y TYPE_MAX_MS. Con las dos en 0 se contesta de inmediato
+ * (el modo rápido de v0.18). Las fotos sin texto no esperan.
+ */
+const TYPE_MIN_MS = 10 * 1000;
+const TYPE_MAX_MS = 20 * 1000;
+function pickTypeMs() {
+  const lo = Math.max(0, Math.min(TYPE_MIN_MS, TYPE_MAX_MS));
+  const hi = Math.max(0, Math.max(TYPE_MIN_MS, TYPE_MAX_MS));
+  return hi ? Math.round(lo + Math.random() * (hi - lo)) : 0;
+}
+
 async function alreadyHandled(chatId, messageId) {
   if (messageId === undefined || messageId === null) return false;
   const key = chatId + ':' + messageId;
@@ -1082,12 +1096,13 @@ function waitTabComplete(tabId, ms) {
   });
 }
 
-async function runReply(tabId, tid, text, send, image) {
+async function runReply(tabId, tid, text, send, image, humanMs) {
   // Una foto implica más pasos (pegarla, esperar su vista previa, confirmar el
   // envío) y, si la pestaña de Facebook está en segundo plano o la ventana
   // minimizada, Chrome frena sus temporizadores y todo tarda más de lo normal:
   // se le da más margen antes de darla por perdida.
-  const replyTimeoutMs = image ? 100 * 1000 : 60 * 1000;
+  // (Y el tiempo "humano" de escritura, que puede llegar a 20 s, se suma.)
+  const replyTimeoutMs = (image ? 100 * 1000 : 60 * 1000) + (humanMs || 0);
   // 1) Cargar el script en la pestaña. Si esto falla, todavía no se tocó nada.
   try {
     await withTimeout(chrome.scripting.executeScript({ target: { tabId: tabId }, files: ['replier.js'] }), SCRIPT_TIMEOUT_MS);
@@ -1098,7 +1113,7 @@ async function runReply(tabId, tid, text, send, image) {
   try {
     const res = await withTimeout(chrome.scripting.executeScript({
       target: { tabId: tabId },
-      args: [{ tid: tid, text: text, send: send, image: image || null }],
+      args: [{ tid: tid, text: text, send: send, image: image || null, humanMs: humanMs || 0 }],
       func: (o) => globalThis.mnReply(o)
     }), replyTimeoutMs);
     return (res && res[0] && res[0].result) || { ok: false, stage: 'script', detail: 'la pestaña de Facebook no respondió.' };
@@ -1156,19 +1171,25 @@ async function deliverReply(target, text, s, image) {
   tabs.sort((a, b) => (/\/messages\b/.test(b.url || '') ? 1 : 0) - (/\/messages\b/.test(a.url || '') ? 1 : 0));
   const tab = tabs[0];
   const send = s.replySend !== false;
+  // El tiempo de esta respuesta se sortea una vez (si es solo una foto, no hay texto que teclear).
+  const humanMs = text ? pickTypeMs() : 0;
   const wake = await wakeTab(tab);
+  // Mientras dura la respuesta (hasta ~20 s sin llamadas a Chrome) se le da un
+  // toque al service worker para que Chrome no lo apague a medias.
+  const ping = setInterval(() => { try { chrome.runtime.getPlatformInfo().catch(() => {}); } catch (e) { /* nada */ } }, 10000);
   try {
-    let r = await runReply(tab.id, target.tid, text, send, image);
+    let r = await runReply(tab.id, target.tid, text, send, image, humanMs);
     if (!r.ok && r.stage === 'abrir') {
       // El chat no está en la lista de esa página: se abre por su dirección y se reintenta una vez.
       const loaded = waitTabComplete(tab.id, 25000);
       try { await chrome.tabs.update(tab.id, { url: 'https://www.facebook.com/messages/t/' + target.tid + '/' }); } catch (e) { /* ya se verá abajo */ }
       await loaded;
       await new Promise((res) => setTimeout(res, 2500));
-      r = await runReply(tab.id, target.tid, text, send, image);
+      r = await runReply(tab.id, target.tid, text, send, image, humanMs);
     }
     return r;
   } finally {
+    clearInterval(ping);
     await restoreTab(wake);
   }
 }

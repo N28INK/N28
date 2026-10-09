@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.18 — content script (content.js)
+/* Notificador Marketplace v0.19 — content script (content.js)
  * Lee la lista de chats y el nombre de la cuenta de Facebook (con collector.js)
  * y se los pasa al background, que decide si avisa. Solo manda algo cuando la lista cambió, para no despertar
  * al background cada 4 segundos sin motivo.

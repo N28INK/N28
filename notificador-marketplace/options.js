@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.18 — options.js */
+/* Notificador Marketplace v0.19 — options.js */
 'use strict';
 
 const DEFAULTS = {
