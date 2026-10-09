@@ -1,4 +1,4 @@
-NOTIFICADOR MARKETPLACE v0.15 — LÉEME
+NOTIFICADOR MARKETPLACE v0.16 — LÉEME
 =====================================
 
 ¿Qué hace?
@@ -179,6 +179,30 @@ Si NO te llegan los avisos (pero sí la prueba)
 3. Para probar: pide a alguien que te escriba DESPUÉS de abrir la pestaña
    (los chats que ya estaban sin leer al abrirla no avisan), y no tengas
    ese chat abierto en pantalla.
+
+Cambios v0.16 (respuestas más rápidas con la ventana minimizada; sin el enlace al chat)
+----------------------------------------------------------------------------------------
+- Causa de la lentitud al contestar con la ventana de Chrome minimizada (o la
+  pestaña de Facebook en segundo plano): Chrome frena a propósito los
+  temporizadores de una pestaña que no se ve, y escribir "letra por letra"
+  pedía una pausa por cada letra — con la pestaña escondida, cada pausa podía
+  tardar casi un segundo de verdad en vez de lo pedido. Un mensaje corto podía
+  tardar muchos segundos; dos o tres chats alternando, todavía más.
+- Ahora, justo antes de contestar, la extensión trae un instante esa pestaña
+  al frente (si la ventana estaba minimizada, la restaura; si había otra
+  pestaña activa, la cambia) — así Chrome no la frena — y en cuanto termina de
+  escribir y enviar, deja todo exactamente como estaba (misma pestaña activa,
+  misma ventana minimizada si lo estaba). Vas a ver la ventana de Facebook
+  asomar un instante en cada respuesta; es ese instante el que la hace rápida.
+  Como respaldo, si por algo no se puede traer al frente, la escritura ya no
+  pide pausas mientras la pestaña sigue escondida (se pierde el efecto de
+  "tecleado humano" en ese caso, pero se escribe de corrido en vez de a paso
+  de tortuga).
+- El aviso de cada chat (el de Telegram) ya no incluye el enlace "Responder:
+  https://facebook.com/...": si puedes contestar con «Responder» (que es lo
+  normal con Telegram), ese enlace ya no hacía falta. Se mantiene solo cuando
+  de verdad es la única forma de llegar al chat (con WhatsApp, o un chat de la
+  bandeja de Marketplace sin «Responder» disponible).
 
 Cambios v0.15 (una foto que no se mandaba dejaba el chat "trabado")
 -----------------------------------------------------------------

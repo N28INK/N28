@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.15 — service worker (background.js)
+/* Notificador Marketplace v0.16 — service worker (background.js)
  * Recibe la lista de chats (del content script, de su propio despertador de
  * 30 segundos o del cambio de título de la pestaña) y, cuando hay un mensaje
  * nuevo sin leer, te avisa al teléfono por WhatsApp (CallMeBot) o Telegram,
@@ -621,10 +621,15 @@ async function alertNewMessage(th, s, isActive) {
     (isActive ? '💬 *Respuesta de ' + th.name + '*\n' : '🔔 *Nuevo mensaje en ' + where + '*\n') +
     accountLine(await accountName(s)) + '\n' +
     (isActive ? '' : 'De: ' + th.name + '\n') +
-    '"' + th.text + '"\n\n' +
-    'Responder: ' + link;
+    '"' + th.text + '"';
   const canReply = replyActive(s) && th.src !== 'texto' && /^\d+$/.test(String(th.tid));
-  const full = canReply ? text + '\n\n↩️ Para contestar desde aquí: mantén pulsado este mensaje y elige «Responder».' : text;
+  // Si puedes contestar con «Responder» (Telegram), el enlace al chat ya no
+  // hace falta: se quita para que el aviso no se vea tan largo. Si no puedes
+  // (WhatsApp, o un chat sin ID de hilo), el enlace sigue siendo la única
+  // forma de llegar a ese chat, así que se mantiene.
+  const full = canReply
+    ? text + '\n\n↩️ Para contestar desde aquí: mantén pulsado este mensaje y elige «Responder».'
+    : text + '\n\nResponder: ' + link;
 
   // El teléfono es lo importante: la notificación del PC va aparte, sin esperarla,
   // para que si Windows/Chrome la retrasan o la bloquean no se retrase el aviso.
@@ -1030,6 +1035,35 @@ async function runReply(tabId, tid, text, send, image) {
   }
 }
 
+// Una pestaña en segundo plano (o la ventana minimizada) hace que Chrome frene
+// sus temporizadores: escribir y enviar se vuelve mucho más lento, y con dos o
+// tres chats alternando esa lentitud se nota todavía más. Mientras se contesta,
+// se trae esa pestaña al frente un instante (nada más mientras dura el envío) y
+// al terminar se deja todo exactamente como estaba (misma pestaña activa, misma
+// ventana minimizada si lo estaba).
+async function wakeTab(tab) {
+  const st = { minimizedWindowId: null, prevActiveTabId: null };
+  try {
+    const win = await chrome.windows.get(tab.windowId);
+    if (win.state === 'minimized') {
+      st.minimizedWindowId = tab.windowId;
+      await chrome.windows.update(tab.windowId, { state: 'normal' });
+    }
+    if (!tab.active) {
+      const [prevActive] = await chrome.tabs.query({ windowId: tab.windowId, active: true });
+      if (prevActive && prevActive.id !== tab.id) st.prevActiveTabId = prevActive.id;
+      await chrome.tabs.update(tab.id, { active: true });
+    }
+  } catch (e) { /* si no se puede, se sigue igual (más lento, pero no se rompe nada) */ }
+  return st;
+}
+async function restoreTab(st) {
+  try {
+    if (st.prevActiveTabId) await chrome.tabs.update(st.prevActiveTabId, { active: true });
+    if (st.minimizedWindowId) await chrome.windows.update(st.minimizedWindowId, { state: 'minimized' });
+  } catch (e) { /* no pasa nada si la ventana ya se cerró, etc. */ }
+}
+
 async function deliverReply(target, text, s, image) {
   let tabs = [];
   try { tabs = await chrome.tabs.query({ url: FB_URLS }); } catch (e) { tabs = []; }
@@ -1041,16 +1075,21 @@ async function deliverReply(target, text, s, image) {
   tabs.sort((a, b) => (/\/messages\b/.test(b.url || '') ? 1 : 0) - (/\/messages\b/.test(a.url || '') ? 1 : 0));
   const tab = tabs[0];
   const send = s.replySend !== false;
-  let r = await runReply(tab.id, target.tid, text, send, image);
-  if (!r.ok && r.stage === 'abrir') {
-    // El chat no está en la lista de esa página: se abre por su dirección y se reintenta una vez.
-    const loaded = waitTabComplete(tab.id, 25000);
-    try { await chrome.tabs.update(tab.id, { url: 'https://www.facebook.com/messages/t/' + target.tid + '/' }); } catch (e) { /* ya se verá abajo */ }
-    await loaded;
-    await new Promise((res) => setTimeout(res, 2500));
-    r = await runReply(tab.id, target.tid, text, send, image);
+  const wake = await wakeTab(tab);
+  try {
+    let r = await runReply(tab.id, target.tid, text, send, image);
+    if (!r.ok && r.stage === 'abrir') {
+      // El chat no está en la lista de esa página: se abre por su dirección y se reintenta una vez.
+      const loaded = waitTabComplete(tab.id, 25000);
+      try { await chrome.tabs.update(tab.id, { url: 'https://www.facebook.com/messages/t/' + target.tid + '/' }); } catch (e) { /* ya se verá abajo */ }
+      await loaded;
+      await new Promise((res) => setTimeout(res, 2500));
+      r = await runReply(tab.id, target.tid, text, send, image);
+    }
+    return r;
+  } finally {
+    await restoreTab(wake);
   }
-  return r;
 }
 
 async function notifyPC(id, title, message) {

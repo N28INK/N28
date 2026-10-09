@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.15 — replier.js
+/* Notificador Marketplace v0.16 — replier.js
  * Escribe (y envía) en un chat de Messenger un texto —y/o pega una foto— que TÚ
  * mandaste a mano en Telegram. Solo lo inyecta el background, en pestañas de
  * Facebook, cuando llega tu respuesta desde tu propio Telegram. No envía nada
@@ -72,6 +72,13 @@
   // tras un espacio o signo de puntuación, como al pensar la frase). Si a mitad
   // de camino cambia el chat abierto o la caja desaparece, se detiene ahí mismo
   // (quien llama decide qué hacer con lo que quedó escrito).
+  //
+  // Con la pestaña en segundo plano (o la ventana minimizada), Chrome frena
+  // los temporizadores de esa página: cada pausa, por pequeña que se pida,
+  // puede acabar tardando casi un segundo de verdad. Con una letra a la vez,
+  // eso vuelve lentísimo incluso un mensaje corto. Mientras la pestaña esté
+  // oculta no se pide ninguna pausa (se escribe de corrido); apenas vuelve a
+  // estar visible, retoma el ritmo humano donde iba.
   const HUMAN_MAX_MS = 25000;    // tope de duración; textos largos se aceleran para no pasarse
   async function typeHuman(c, text, threadRe) {
     c.focus();
@@ -89,6 +96,7 @@
         c.dispatchEvent(new InputEvent('beforeinput', { data: ch, inputType: 'insertText', bubbles: true, cancelable: true }));
         document.execCommand('insertText', false, ch);
         c.dispatchEvent(new KeyboardEvent('keyup', { key: ch, bubbles: true, cancelable: true }));
+        if (document.visibilityState === 'hidden') continue; // en segundo plano: sin pausas artificiales
         let pause = rand(budgetPerChar * 0.5, budgetPerChar * 1.5);
         if (/[ ,;:]/.test(ch)) pause += rand(40, 120);
         else if (/[.!?]/.test(ch)) pause += rand(90, 220);
@@ -97,6 +105,12 @@
     }
     return true;
   }
+
+  // Las pausas "de cortesía" (dar tiempo a que Facebook redibuje tras abrir un
+  // chat, pegar una foto, etc.) tampoco hace falta pedirlas tan largas si la
+  // pestaña está oculta: ya no se nota, y cada una pedida de más puede costar
+  // casi un segundo real por el freno de Chrome.
+  const settle = (ms) => wait(document.visibilityState === 'hidden' ? Math.min(ms, 60) : ms);
 
   // Plan B si el editor no aceptó el texto: simular que se pega.
   function pasteInto(c, text) {
@@ -214,13 +228,13 @@
       // conversación; si se escribe antes de que se asiente, el texto puede
       // quedar en el chat anterior o perderse. Se espera a que la caja deje
       // de cambiar de identidad (DOM quieto) antes de seguir.
-      await wait(700);
+      await settle(700);
     }
 
     // 2. la caja de mensaje, vacía (se busca de nuevo: la de antes puede ya no servir)
     let composer = await waitFor(() => (threadRe.test(location.pathname) ? findComposer() : null), 10000);
     if (!composer) return { ok: false, stage: 'caja', detail: 'no encuentro la caja para escribir el mensaje' };
-    await wait(400);
+    await settle(400);
     if (!threadRe.test(location.pathname)) return { ok: false, stage: 'abrir', detail: 'el chat abierto cambió; no escribo nada' };
     composer = findComposer() || composer; // revalidar tras la espera
     const curText = composerText(composer);
@@ -232,7 +246,7 @@
         // (coincide el texto exacto): se limpia y se sigue, en vez de negarse.
         if (curPreview) { try { curPreview.remove(); } catch (e) { /* no pasa nada si no se puede */ } }
         clearComposer(composer);
-        await wait(150);
+        await settle(150);
       } else {
         return { ok: false, stage: 'borrador', detail: 'ya hay ' + (curPreview ? 'una foto y/o texto' : 'un texto') + ' escrito en ese chat (un borrador); no lo piso' };
       }
@@ -249,7 +263,7 @@
       } catch (e) {
         return { ok: false, stage: 'imagen', detail: 'no pude pegar la foto en la caja de mensaje (' + shortErr(e) + ')' };
       }
-      await wait(1200); // darle tiempo a Facebook de procesar el adjunto y mostrar su vista previa
+      await settle(1200); // darle tiempo a Facebook de procesar el adjunto y mostrar su vista previa
       if (!threadRe.test(location.pathname)) return { ok: false, stage: 'abrir', detail: 'el chat abierto cambió justo al pegar la foto; no sigo' };
       composer = findComposer() || composer;
       preview = findAttachmentPreview(composer);
@@ -263,14 +277,14 @@
         // (podría estar escribiendo en el chat equivocado).
         return { ok: false, stage: 'escribir', detail: 'cambiaste de chat en Facebook mientras escribía; dejé de escribir' };
       }
-      await wait(250);
+      await settle(250);
       if (!threadRe.test(location.pathname)) return { ok: false, stage: 'abrir', detail: 'el chat abierto cambió justo al terminar de escribir; no envío' };
       composer = findComposer() || composer;
       if (squash(composer.innerText || composer.textContent) !== squash(text)) {
         clearComposer(composer);
-        await wait(200);
+        await settle(200);
         pasteInto(composer, text);
-        await wait(400);
+        await settle(400);
       }
       if (squash(composer.innerText || composer.textContent) !== squash(text)) {
         clearComposer(composer);
@@ -307,7 +321,7 @@
       // No se pudo confirmar con certeza (no se localizó la vista previa de la
       // foto): se le da a Facebook un margen razonable y se da por enviado,
       // dejando constancia de que esta parte no quedó verificada del todo.
-      await wait(1800);
+      await settle(1800);
       cleared = !composerText(composer);
     }
     if (!cleared) return { ok: false, stage: 'enviar', detail: 'quedó escrito/pegado en el chat pero Facebook no lo envió' };
@@ -315,7 +329,7 @@
     // si se cambia de inmediato, un envío que aún no terminó de procesarse
     // (el "enviado" a veces llega un instante después de vaciar la caja) puede
     // mezclarse con el chat siguiente.
-    await wait(1200);
+    await settle(1200);
     await clearOwnDraft(tid); // se envió: no queda nada pendiente que cuidar en este chat
     return { ok: true, sent: true, stage: 'enviado' };
   };
