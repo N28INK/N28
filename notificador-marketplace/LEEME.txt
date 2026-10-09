@@ -1,0 +1,451 @@
+NOTIFICADOR MARKETPLACE v0.19 — LÉEME
+=====================================
+
+¿Qué hace?
+----------
+Esta extensión de Chrome vigila tus chats de Facebook (facebook.com/messages)
+en el PC y, cuando un cliente te escribe (por ejemplo desde Marketplace), te
+manda un aviso a tu TELÉFONO por WhatsApp o Telegram con quién escribió, qué
+dijo y un enlace para responder. También muestra una notificación en el PC.
+
+¿Cómo se instala? (5 minutos)
+-----------------------------
+1. Descomprime el .zip (clic derecho → "Extraer todo…").
+2. En el PC, abre Chrome y ve a:  chrome://extensions
+3. Activa arriba a la derecha "Modo de desarrollador".
+4. Pulsa "Cargar descomprimida" y elige la carpeta donde ves directamente el
+   archivo manifest.json (si ves otra carpeta adentro, entra a esa).
+   Se abre sola la página de Configuración.
+   Para ACTUALIZAR a una versión nueva: reemplaza los archivos de esa carpeta
+   y pulsa el botón ⟳ de la extensión en chrome://extensions.
+5. Fija el icono: pieza de rompecabezas (🧩) junto a la barra de direcciones →
+   chincheta junto a "Notificador Marketplace".
+
+Canal WHATSAPP (CallMeBot, gratis)
+----------------------------------
+1. En tu TELÉFONO agrega a tus contactos el número del bot de CallMeBot:
+       +34 623 75 84 18   (ponle de nombre "CallMeBot")
+   OJO: CallMeBot cambia este número de vez en cuando. Si no te responde,
+   mira el número vigente en:
+       https://www.callmebot.com/blog/free-api-whatsapp-messages/
+2. Por WhatsApp envíale exactamente este mensaje:
+       I allow callmebot to send me messages
+3. El bot te responde con tu APIKEY (un número). Si no llega en 2 minutos,
+   CallMeBot pide volver a intentarlo pasadas 24 horas.
+4. En la Configuración de la extensión elige "WhatsApp", pega tu número
+   (con código de país, sin + ni espacios; EE. UU.: 1 + 10 dígitos, ej.
+   12815551234) y tu APIKEY → "Guardar y probar aviso".
+   Debe llegarte el mensaje de prueba en segundos.
+
+Canal TELEGRAM (alternativa, gratis y muy estable)
+--------------------------------------------------
+1. Instala Telegram en tu teléfono y crea tu cuenta.
+2. Busca @BotFather, escríbele /newbot, ponle un nombre y un usuario que
+   termine en "bot". Te responde con el token: guárdalo.
+3. Busca tu bot por su usuario y pulsa "Iniciar" (o escríbele "hola").
+4. Busca @userinfobot, escríbele y te responde con tu ID (un número).
+5. En la Configuración elige "Telegram", pega el token y tu ID →
+   "Guardar y probar aviso".
+
+Déjalo vigilando
+----------------
+- Abre facebook.com/messages en Chrome con tu sesión iniciada (o pulsa
+  "Abrir mis chats de Facebook" en el icono de la extensión) y DEJA ESA
+  PESTAÑA ABIERTA. Puedes fijarla y minimizar la ventana.
+  Importante: la extensión lee la lista de chats que se ve en esa página.
+  Con solo el inicio de Facebook abierto (sin la lista de chats) no puede
+  ver los mensajes. Desde abril de 2026 messenger.com ya no existe y
+  redirige a facebook.com/messages.
+- Con la ventana MINIMIZADA sigue avisando (v0.6):
+  · revisa la pestaña cada 30 segundos y le pide a Chrome que no la
+    congele ni la descargue;
+  · además vigila el título de la pestaña ("(1) Messenger" o "Carlos te
+    envió un mensaje"). Si Facebook no redibuja la lista estando
+    minimizado, igual te llega un aviso "Nuevo mensaje en Facebook" con el
+    nombre (cuando Facebook lo muestra) y el enlace para responder.
+- MUY recomendado: en chrome://settings/performance
+  · en "Mantener siempre activos estos sitios" agrega facebook.com;
+  · si usas portátil, apaga "Ahorro de energía" o ponlo en "solo cuando la
+    batería esté baja" (ese modo congela pestañas en segundo plano).
+- En Windows: Configuración → Sistema → Energía → que el PC no entre en
+  suspensión mientras quieras recibir avisos. Con el PC suspendido no hay
+  avisos.
+- El PC tiene que quedar ENCENDIDO, sin suspenderse, con Chrome abierto.
+  Si cierras Chrome o el PC se duerme, no avisa.
+- Haz clic en el icono de la extensión para ver si está vigilando:
+  "Vigilando N chats … Revisado hace X s". Si dice "No veo tu lista de
+  chats", abre facebook.com/messages. Si pasan 10 minutos sin ver la lista,
+  también te sale una notificación en el PC.
+
+Contestar desde Telegram (v0.11, opcional)
+------------------------------------------
+Tú escribes A MANO en Telegram y la extensión pone ese texto en el chat de
+Messenger de donde vino el mensaje. No hay botones ni respuestas automáticas.
+
+1. Actívalo: icono de la extensión -> "Activar respuestas desde Telegram"
+   (o Configuración -> "Contestar desde Telegram"). Solo con el canal Telegram.
+2. Te llega el aviso: "Nuevo mensaje… ¿Sigue disponible?".
+3. En Telegram mantén pulsado ese aviso -> "Responder" -> escribe tu texto
+   (por ejemplo "Sí claro, ¿buscas financiar?") -> enviar.
+4. La extensión abre ese chat en tu pestaña de Facebook, escribe el texto,
+   lo envía y te confirma en Telegram: "✅ Enviado a «Carlos»: «…»".
+- Si no usas "Responder" y solo hay UN chat avisado en los últimos 15 min, el
+  texto va a ese chat. Si hay varios, te pide que uses "Responder".
+- Si apagas "Enviar automáticamente", solo lo escribe en la caja del chat y
+  tú pulsas Enter en el PC.
+Seguridad:
+- Solo obedece a TU cuenta de Telegram (el ID que guardaste). Cualquier otra
+  persona que le escriba al bot es ignorada.
+- No escribe si ya hay un borrador en ese chat, ni si no logra abrir
+  exactamente ese chat. Máximo 5 respuestas por minuto y 40 por hora.
+- Lo que ya estaba pendiente en Telegram al activarlo se descarta.
+Requisitos y límites:
+- Necesita una pestaña de Facebook abierta (de preferencia facebook.com/messages).
+- Un bot solo puede ser leído por UN programa a la vez: si usas varios
+  perfiles de Chrome, usa un bot distinto en cada uno.
+- Facebook puede cambiar su caja de mensaje; si algo falla, el bot te dice en
+  qué paso (y el Registro lo anota). Pruébalo primero con un chat de prueba.
+- Es automatizar tu propia cuenta: Facebook podría marcarlo. Úsalo con
+  moderación, solo para contestar tus propios chats.
+- Las respuestas funcionan con chats de Messenger (no con la bandeja de
+  Marketplace en modo texto).
+
+Nombre de la cuenta de Facebook en los avisos (v0.8)
+----------------------------------------------------
+Cada aviso al teléfono dice en qué cuenta de Facebook llegó el mensaje:
+
+    🔔 Nuevo mensaje en Marketplace
+    📘 Cuenta de Facebook: Juan Pérez
+
+    De: Carlos Méndez
+    "Hola, ¿sigue disponible?"
+
+    Responder: https://www.facebook.com/messages/t/...
+
+- El nombre se detecta solo, leyendo los datos de la cuenta con sesión
+  iniciada que Facebook ya trae en la página. No se hace ninguna petición
+  extra ni se manda ese dato a ningún sitio salvo en tu propio aviso.
+- Para comprobarlo: icono de la extensión -> debe decir "Cuenta de Facebook
+  en los avisos: ..." o pulsa "Probar aviso": el mensaje de prueba trae
+  la línea de cuenta (o dice "(sin detectar)").
+- Si no la detecta (Facebook cambió algo) o quieres otro nombre, escríbelo
+  en Configuración -> "Nombre de tu cuenta de Facebook". El nombre escrito
+  a mano manda sobre el detectado. Sin nombre, el aviso sale igual, solo
+  que sin esa línea.
+- VARIAS CUENTAS de Facebook: usa un perfil de Chrome distinto para cada
+  cuenta (menú de tu foto arriba a la derecha de Chrome -> "Añadir perfil"),
+  inicia sesión en Facebook en cada uno e instala la extensión en cada perfil.
+  Pueden usar el mismo bot de Telegram o el mismo WhatsApp: en cada aviso
+  verás el nombre de la cuenta que recibió el mensaje.
+
+Cómo decide cuándo avisar
+-------------------------
+- Solo avisa de mensajes NUEVOS y SIN LEER, una vez por mensaje.
+- Al abrir la lista de chats, los chats viejos que ya estaban sin leer se
+  memorizan sin avisar (para no mandarte 20 avisos de golpe).
+- Si el cliente manda varios mensajes seguidos, avisa una vez y, si pasan
+  2 minutos y sigue sin leer, avisa del último.
+- No avisa del chat que tienes abierto en pantalla en ese momento, ni de
+  tus propias respuestas.
+- La opción "Avisar solo de chats de Marketplace" viene APAGADA: así te
+  avisa de cualquier chat nuevo y no se te escapa ningún comprador. Si la
+  enciendes, solo avisa de los chats que Facebook muestra como de
+  Marketplace ("Nombre · Artículo"). Si con la opción encendida dejan de
+  llegarte avisos, apágala.
+
+Límites honestos
+----------------
+- La extensión lee la página de Facebook; no usa ninguna API oficial de
+  Meta (no existe una para esto). Si Facebook cambia su diseño puede dejar
+  de detectar mensajes: el icono de la extensión te lo mostrará
+  ("No veo tu lista de chats" o "0 sin leer" cuando sí tienes sin leer).
+- CallMeBot es gratis para uso personal, pero es de un tercero, no de Meta.
+  No le des tu APIKEY a nadie. Si CallMeBot falla, prueba Telegram.
+- Tus datos (número, APIKEY, token) se guardan solo en este Chrome.
+
+Si NO te llegan los avisos (pero sí la prueba)
+----------------------------------------------
+0. Mira el REGISTRO: icono de la extensión -> "No me llegan avisos
+   (diagnóstico)" -> sección "Registro de eventos". Dice, por cada chat que
+   cambió, si se avisó o POR QUÉ NO ("tienes ese chat abierto", "solo
+   Marketplace está activado", "ya se avisó hace menos de un minuto"…) y
+   qué respondió Telegram/WhatsApp. Pulsa "Copiar registro" para mandarlo.
+   El icono también muestra los últimos eventos.
+1. Comprueba que la pestaña abierta es facebook.com/messages (la lista de
+   chats a la izquierda), no el inicio de Facebook.
+2. Clic en el icono de la extensión → "No me llegan avisos (diagnóstico)"
+   → "Ver qué detecta" → "Copiar", y pégaselo a quien te da soporte.
+   Ahí se ve si la extensión lee tus chats y cómo los interpreta.
+3. Para probar: pide a alguien que te escriba DESPUÉS de abrir la pestaña
+   (los chats que ya estaban sin leer al abrirla no avisan), y no tengas
+   ese chat abierto en pantalla.
+
+Cambios v0.19 (las respuestas se escriben letra por letra, entre 10 y 20 segundos)
+------------------------------------------------------------------------------------
+- Cada respuesta de TEXTO (o el pie de una foto) se teclea ahora letra por letra y
+  tarda un tiempo que se sortea en cada respuesta, siempre entre 10 y 20 segundos
+  contados desde que la mandas en Telegram hasta que se pulsa Enviar en Messenger.
+  Dos respuestas seguidas casi nunca tardan lo mismo.
+- No es un teclear parejo: hay una pausa al principio ("leer y pensar"), las letras
+  salen a ritmo irregular (más lento tras cada palabra, más tras una coma o un punto,
+  alguna duda suelta) y una pausa final antes de enviar ("releer"). Un mensaje muy
+  corto no se escribe eterno: lo que sobra se reparte en las pausas. Un texto muy
+  largo se acelera para no pasar de 20 segundos.
+- Una foto SIN texto no espera: sale como antes.
+- Si Facebook no acepta el tecleo letra por letra, se nota con la primera letra
+  (no se gastan 10-20 s) y baja solo a los métodos rápidos de la v0.18, que
+  siguen dejando el texto exacto una sola vez.
+- Si Chrome frena la pestaña (ventana minimizada o tapada), el tecleo se pone al
+  día por tandas en vez de tardar un segundo por letra; la duración total casi no cambia.
+- Si Facebook rehace la caja a mitad (o cambias de chat), no se manda nada a medias:
+  o termina el mensaje completo y exacto, o se detiene.
+- Los candados contra repetidos siguen igual: si mandas lo mismo dos o tres veces
+  mientras se está escribiendo (o Telegram lo vuelve a entregar), sale UNA sola vez.
+- Los tiempos máximos de espera (el de "incierto" y el de "tardé demasiado y no lo
+  envié") se alargaron lo que dura el tecleo, para que una respuesta lenta a propósito
+  no se confunda con una que se colgó.
+- El rango está al principio de background.js (TYPE_MIN_MS y TYPE_MAX_MS, en
+  milisegundos; con las dos en 0 vuelve a contestar al instante).
+- El registro muestra el tiempo real de cada respuesta, p. ej.
+  "(14.8 s: abrir 0.6s · caja 0.4s · escribir H 12.9s · releer 0.8s · enviar 0.4s)".
+
+Cambios v0.18 (la v0.17 duplicaba el texto en la caja; sin respuestas repetidas)
+---------------------------------------------------------------------------------
+- Falla de la v0.17, reproducida con un editor Lexical real (el de Messenger): la
+  inserción rápida mandaba a la vez un evento "beforeinput" con TODO el texto y
+  un execCommand con el mismo texto, y el editor atendía los dos: el mensaje
+  quedaba DUPLICADO en la caja ("5k down payment5k down payment"), la
+  comprobación fallaba ("Facebook no aceptó el texto en la caja") y encima el
+  "vaciar" que usaba no vaciaba nada, así que los métodos de respaldo escribían
+  encima y el chat quedaba bloqueado con texto basura.
+- Ahora cada método usa UN solo mecanismo y se prueban en orden hasta que la caja
+  tenga EXACTAMENTE el mensaje: A) todo de una vez (rápido), C) otro evento de una
+  vez, D) letra por letra con pausas cortas (el de la v0.14, pero ~5 veces más
+  rápido). El que funciona se recuerda para la siguiente respuesta.
+- Antes de pasar de un método al siguiente, la caja se vacía y se COMPRUEBA que
+  quedó vacía (selectAll + beforeinput de borrado, que sí vacía Lexical). Si no se
+  puede vaciar, se detiene, te dice exactamente qué vio ("esperaba 15 caracteres,
+  vi 30: «…»") y recuerda ese texto como suyo para limpiarlo solo la próxima vez.
+- Respuestas repetidas, bloqueadas en tres capas:
+  1) un mensaje de Telegram (mismo chat + mismo id) se atiende una sola vez, aunque
+     Telegram lo vuelva a entregar o el navegador se reinicie a media operación;
+  2) el mismo texto (o la misma foto) al mismo chat de Facebook no se repite dentro
+     de 20 segundos después de enviarse o de quedar "incierto" (avisa y no lo manda);
+  3) la pestaña de Facebook atiende UNA respuesta a la vez; si llega otra mientras
+     la anterior sigue, la rechaza en vez de pelearse por la misma caja.
+- Un "se agotó el tiempo" ya no se trata como "no se envió": ahora se reporta como
+  INCIERTO (la pestaña pudo terminar de enviarlo después). Y si la pestaña ya
+  tardó demasiado antes de apretar Enviar, por seguridad ya no lo envía.
+- El registro muestra el desglose de tiempos y el método usado, p. ej.
+  "(1.9 s: abrir 0.6s · caja 0.4s · escribir A 0.3s · enviar 0.5s)".
+
+Cambios v0.17 (fotos del anuncio bloqueaban respuestas de texto; sin reintentos a ciegas)
+-------------------------------------------------------------------------------------------
+- Bug grave de la v0.16: para saber si había "una foto pendiente", se buscaba
+  cualquier <img> visible en toda la conversación — y ahí también están las
+  fotos del vehículo anunciado, las de mensajes viejos y los avatares. Si el
+  chat tenía esas fotos (lo normal en Marketplace), la extensión se negaba a
+  escribir hasta un simple texto, con el error "ya hay una foto y/o texto
+  escrito...; no lo piso" aunque la caja estuviera vacía.
+- Ahora solo se bloquea por TEXTO en la caja. Para la foto que TÚ mandas por
+  Telegram, en vez de buscar "cualquier imagen", se compara qué miniatura
+  NUEVA aparece justo después de pegarla (nunca antes); eso sirve únicamente
+  para confirmar el envío de esa foto, nunca para decidir si hay un borrador.
+- El texto ahora se inserta de una sola vez (mucho más rápido); solo si el
+  editor no lo acepta así, se baja a escritura letra por letra y, si tampoco,
+  a "pegar" como respaldo — cada paso se comprueba antes de seguir.
+- Al enviar: si un método no confirma el envío, solo se prueba otro cuando la
+  caja sigue exactamente igual que antes de intentarlo. Si queda en un estado
+  intermedio (ni vacía ni igual) no se sabe qué pasó de verdad — antes se
+  seguía intentando a ciegas, arriesgando mandarlo dos veces; ahora se detiene
+  con "⚠️ No estoy seguro de si le llegó" y no reintenta solo.
+- El registro ahora anota cuánto tardó cada respuesta (segundos).
+- Importante: tras instalar esta versión, en chrome://extensions pulsa el
+  botón ⟳ (recargar) de la extensión — si no, Chrome puede seguir usando el
+  código viejo en las pestañas de Facebook que ya tenías abiertas.
+
+Cambios v0.16 (respuestas más rápidas con la ventana minimizada; sin el enlace al chat)
+----------------------------------------------------------------------------------------
+- Causa de la lentitud al contestar con la ventana de Chrome minimizada (o la
+  pestaña de Facebook en segundo plano): Chrome frena a propósito los
+  temporizadores de una pestaña que no se ve, y escribir "letra por letra"
+  pedía una pausa por cada letra — con la pestaña escondida, cada pausa podía
+  tardar casi un segundo de verdad en vez de lo pedido. Un mensaje corto podía
+  tardar muchos segundos; dos o tres chats alternando, todavía más.
+- Ahora, justo antes de contestar, la extensión trae un instante esa pestaña
+  al frente (si la ventana estaba minimizada, la restaura; si había otra
+  pestaña activa, la cambia) — así Chrome no la frena — y en cuanto termina de
+  escribir y enviar, deja todo exactamente como estaba (misma pestaña activa,
+  misma ventana minimizada si lo estaba). Vas a ver la ventana de Facebook
+  asomar un instante en cada respuesta; es ese instante el que la hace rápida.
+  Como respaldo, si por algo no se puede traer al frente, la escritura ya no
+  pide pausas mientras la pestaña sigue escondida (se pierde el efecto de
+  "tecleado humano" en ese caso, pero se escribe de corrido en vez de a paso
+  de tortuga).
+- El aviso de cada chat (el de Telegram) ya no incluye el enlace "Responder:
+  https://facebook.com/...": si puedes contestar con «Responder» (que es lo
+  normal con Telegram), ese enlace ya no hacía falta. Se mantiene solo cuando
+  de verdad es la única forma de llegar al chat (con WhatsApp, o un chat de la
+  bandeja de Marketplace sin «Responder» disponible).
+
+Cambios v0.15 (una foto que no se mandaba dejaba el chat "trabado")
+-----------------------------------------------------------------
+- Si mandar una foto (o un texto) tardaba demasiado — por ejemplo con la
+  ventana de Chrome minimizada o la pestaña de Facebook en segundo plano,
+  que hace que Chrome frene sus temporizadores — el intento se daba por
+  perdido, pero lo que ya se había pegado/escrito se quedaba en la caja. El
+  SIGUIENTE intento a ese mismo chat lo veía como "ya hay un borrador tuyo" y
+  se negaba a tocarlo, dejando ese chat sin poder contestar hasta limpiar la
+  caja a mano en el PC.
+- Ahora la extensión recuerda, por chat, qué fue lo último que ELLA MISMA
+  dejó a medias; si el siguiente intento encuentra exactamente eso, lo limpia
+  sola y sigue — un borrador que tú escribiste a mano (que no coincide) se
+  sigue respetando exactamente igual que antes.
+- A las respuestas con foto se les da más tiempo (100 s en vez de 60 s) antes
+  de darlas por perdidas, porque tienen más pasos y se ven más afectadas por
+  pestañas en segundo plano.
+- Si aun así se agota el tiempo, el aviso ahora sugiere dejar esa pestaña de
+  Facebook visible (no minimizada) mientras se manda la respuesta.
+
+Cambios v0.14 (contestar en EQUIPO, desde un grupo de Telegram)
+-----------------------------------------------------------------
+- "Tu ID de Telegram" ahora también admite el ID de un GRUPO (empieza con signo
+  menos). Si pones un grupo: los avisos llegan ahí y CUALQUIERA que esté en ese
+  grupo puede contestar los chats (texto y/o foto), no solo tú.
+- El registro anota quién contestó cada chat (su nombre o @usuario de Telegram),
+  y la confirmación en el grupo también lo dice, para que el equipo sepa quién
+  ya atendió a cuál comprador.
+- Con tu ID personal (no un grupo) todo sigue exactamente igual que antes: solo
+  tu cuenta puede contestar.
+- Advertencia: dentro de un grupo no hay forma de distinguir "vendedor de
+  confianza" de cualquier otro miembro — todos los que estén ahí pueden escribir
+  en tus chats de Facebook a tu nombre. Mete al bot al grupo e invita solo a
+  quien deba tener ese poder.
+- En un grupo, Telegram por defecto solo le pasa al bot los mensajes que
+  responden a uno de sus avisos (con «Responder») — así que ESE es el único
+  modo que funciona seguro ahí (es, de hecho, el que siempre se recomienda).
+  Si además quieres que valga escribir sin «Responder» cuando solo hay un chat
+  pendiente, habla con @BotFather → tu bot → /setprivacy → Disable.
+
+Cambios v0.13 (mandar fotos desde Telegram al chat)
+----------------------------------------------------
+- Ahora, además de texto, puedes adjuntar una FOTO en Telegram (con o sin texto
+  como pie) al responder un aviso: la extensión la pega en el chat de Facebook
+  (como si la copiaras y la pegaras) y, si escribiste texto, lo escribe debajo
+  antes de enviar. El bot te confirma "✅ Foto enviada a …".
+- Límite: una foto a la vez por respuesta, hasta 8 MB; si Telegram la comprimió
+  demasiado o no se pudo descargar, el bot te lo dice sin tocar nada en Facebook.
+  Pegar imágenes se probó contra una página simulada, no contra Facebook real:
+  si en tu cuenta no queda pegada la foto, avísame para ajustarlo.
+
+Cambios v0.12 (alternar chats sin fallos, avisos completos, escritura humana)
+------------------------------------------------------------------------------
+- Al contestar varios chats seguidos desde Telegram, la respuesta a veces se
+  quedaba escrita en el chat sin enviarse (había que pulsar Enter a mano):
+  ahora, tras cambiar de chat, espera a que Facebook se asiente, vuelve a
+  buscar la caja de mensaje justo antes de escribir y de enviar, comprueba que
+  sigue en el chat correcto en cada paso, y reintenta el envío de varias
+  formas (botón "Enviar" y Enter) antes de rendirse. Si llega otra respuesta
+  tuya mientras la anterior se está escribiendo, espera su turno en vez de
+  pisarla (avisa "⏳ En cola").
+- El texto se escribe letra por letra, con pausas irregulares, como lo haría
+  una persona (antes se pegaba de golpe).
+- Las respuestas del comprador ya no se cortan a 200 caracteres: llegan
+  completas al bot de Telegram. Mientras sigues una conversación (le
+  contestaste hace poco desde Telegram), cada respuesta del comprador avisa
+  casi al instante y sin importar si tienes ese chat abierto en el PC
+  ("💬 Respuesta de …"), sin dejar de respetar "solo Marketplace" si lo
+  tienes activado.
+- El título de la pestaña parpadeando ("(2) Messenger | Facebook" yendo y
+  viniendo) inundaba el registro y mandaba avisos generales de más: ahora se
+  distingue el parpadeo de un mensaje nuevo de verdad, y el registro junta
+  las líneas repetidas en una sola con un contador (×N) en vez de listarlas
+  todas.
+
+Cambios v0.11
+-------------
+- Contestar desde Telegram (ver arriba). Archivo nuevo: replier.js.
+
+Cambios v0.10 (a partir del registro de un usuario real)
+-------------------------------------------------------
+- La casilla "Avisar solo de chats de Marketplace" venía ENCENDIDA desde
+  versiones viejas y silenciaba todo lo que no fuera Marketplace, incluido el
+  aviso general por el título. Ahora el icono muestra un aviso rojo si está
+  encendida y la apaga con un clic ("Avisar de todos los chats").
+- Si la lista de chats NO muestra el mensaje (pasa con la ventana minimizada)
+  y solo cambia el título "(1) Messenger", se manda el aviso general aunque
+  esa casilla esté encendida (dice "no pude ver de qué chat viene"). Si la
+  lista SÍ vio el chat y lo descartó por no ser de Marketplace, no se repite.
+- Las filas que empiezan con "Activo ahora" se leían con ese texto como
+  nombre (y no se reconocían como Marketplace). Corregido.
+- El título que parpadea "(1)" ya no manda el aviso general varias veces.
+
+Cambios v0.9 (avisos más seguros y con explicación)
+---------------------------------------------------
+- Registro de eventos: qué se leyó, qué se avisó, qué NO se avisó y por qué.
+- Bandeja de Marketplace (facebook.com/marketplace/inbox): ahora también se
+  lee (antes solo facebook.com/messages). Tampoco avisa si la tienes a la
+  vista y enfocada.
+- Un mensaje IGUAL al anterior en el mismo chat ("Hola" otra vez) ahora avisa:
+  se nota porque la hora del chat vuelve a "ahora".
+- Si Facebook redibuja la lista y queda vacía un instante, ya no se "traga"
+  el mensaje que llegó en ese momento.
+- La notificación del PC va aparte: si Windows/Chrome la bloquean o la
+  retrasan, el aviso al teléfono sale igual.
+- Espera por chat: 1 minuto (antes 2).
+- Se quita la etiqueta oculta "Unread message:" del texto del aviso.
+- El icono dice qué tipo de página lee y si no hay pestaña de Facebook.
+
+Cambios v0.8 (nombre de la cuenta)
+----------------------------------
+- Los avisos (mensaje nuevo, plan B por título y mensaje de prueba) incluyen
+  "Cuenta de Facebook: <nombre>".
+- Campo opcional en Configuración para escribir el nombre a mano.
+- El icono de la extensión muestra qué cuenta está detectando.
+- El diagnóstico explica por qué no se detecta, sin mostrar tu número de usuario.
+- Al actualizar, las pestañas de Facebook que ya estaban abiertas reciben el
+  lector nuevo solas (antes había que recargarlas).
+
+Cambios v0.7 (no llegaban los avisos)
+-------------------------------------
+- La v0.6 solo avisaba si detectaba la marca de "sin leer" de Facebook
+  (punto azul o negrita). Esa marca depende del diseño de Facebook y en tu
+  cuenta podía no detectarse nunca. Ahora también avisa cuando un chat sube
+  a las primeras filas de la lista con un mensaje nuevo que no es tuyo.
+- Se reconocen más respuestas tuyas ("Enviaste una foto", "Reaccionaste…")
+  y más formatos de hora ("hace 2 min", "12 sem.").
+- Nuevo diagnóstico en la Configuración para ver qué detecta.
+
+Cambios v0.6 (ventana minimizada)
+---------------------------------
+- Con Chrome minimizado los avisos no llegaban a Telegram/WhatsApp:
+  · si Chrome congelaba la pestaña, la revisión periódica se quedaba
+    esperando para siempre y no volvía a revisar: ahora tiene tiempo límite;
+  · la extensión le pide a Chrome que no congele la pestaña de Facebook;
+  · plan B por el título de la pestaña (ver "Déjalo vigilando");
+  · revisión cada 30 s en vez de cada minuto, y revisión inmediata al
+    volver a mostrar la ventana.
+
+Cambios v0.5 (auditoría)
+------------------------
+- El número de CallMeBot de las instrucciones estaba desactualizado: ahora
+  es +34 623 75 84 18 (con enlace para comprobarlo).
+- Cada envío correcto por WhatsApp se marcaba como "fallido" (CallMeBot
+  responde "Message queued", no "Message sent"): corregido.
+- La hora del chat ("5 min", "1 h") se tomaba como parte del mensaje y
+  provocaba avisos repetidos cada 2 minutos: ahora se quita.
+- El nombre en negrita se tomaba como "sin leer" y provocaba avisos falsos,
+  incluso de tus propias respuestas: corregido.
+- Avisos dobles cuando el content script y el despertador revisaban a la
+  vez: ahora se procesan en cola.
+- Si tenías Facebook en primer plano (aunque fuera el inicio), no avisaba
+  nunca de ese mensaje: ahora solo se omite el chat que tienes abierto.
+- "Probar aviso" desde Configuración podía usar los datos viejos y nunca
+  mostraba el resultado: ahora guarda primero y muestra si funcionó.
+- El despertador se reiniciaba cada vez que el service worker arrancaba.
+- La memoria de chats crecía sin límite: ahora se limpia sola.
+- Se quitó el permiso "tabs" (Chrome mostraba "leer tu historial").
+- Popup con estado real (cuántos chats ve, último aviso, último error),
+  notificación en el PC con clic para abrir el chat, enlace al chat en el
+  aviso del teléfono, validación del número/APIKEY/token, contraseñas
+  ocultas en la Configuración.

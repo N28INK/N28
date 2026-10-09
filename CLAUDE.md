@@ -41,6 +41,10 @@ Toda la conversión va a WhatsApp (+1 281 602 7044). No hay backend ni base de d
   `public/css/styles.css`; sigue siendo HTML/CSS/JS plano sin build ni dependencias de runtime
   (probado con jsdom sirviendo `public/` por HTTP: las 4 páginas cargan sin errores de consola).
 
+- `notificador-marketplace/`: extensión de Chrome aparte (NO es parte del sitio ni se publica en
+  Vercel) que avisa por WhatsApp (CallMeBot) o Telegram cuando llega un mensaje nuevo de Marketplace
+  a facebook.com/messages. Instrucciones de uso en `notificador-marketplace/LEEME.txt`.
+
 ## Tareas pendientes (en este orden)
 1. **Inventario real**: reemplaza los 6 vehículos de ejemplo por los 10 de `img/`
    (Tahoe RST rojo, Yukon Denali, Suburban LT gris, Wrangler Rubicon, Suburban RST negro,
