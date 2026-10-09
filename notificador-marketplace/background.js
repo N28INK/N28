@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.17 — service worker (background.js)
+/* Notificador Marketplace v0.18 — service worker (background.js)
  * Recibe la lista de chats (del content script, de su propio despertador de
  * 30 segundos o del cambio de título de la pestaña) y, cuando hay un mensaje
  * nuevo sin leer, te avisa al teléfono por WhatsApp (CallMeBot) o Telegram,
@@ -927,6 +927,54 @@ function senderName(msg) {
   return n || 'alguien';
 }
 
+/* ---- que una respuesta nunca se mande dos veces ----
+ * Dos protecciones, por si Telegram vuelve a entregar un mensaje, el service
+ * worker se reinicia a media operación, o tocas "enviar" dos veces seguidas:
+ *  1. Cada mensaje de Telegram (chat + message_id) se atiende UNA sola vez.
+ *  2. El mismo texto (o la misma foto) al mismo chat de Facebook no se repite
+ *     dentro de DUP_WINDOW_MS después de que se envió o quedó "incierto".
+ */
+const DONE_MSGS_KEY = 'mn_done_msgs';
+const RECENT_SENDS_KEY = 'mn_recent_sends';
+const DUP_WINDOW_MS = 20 * 1000;
+
+async function alreadyHandled(chatId, messageId) {
+  if (messageId === undefined || messageId === null) return false;
+  const key = chatId + ':' + messageId;
+  const d = await chrome.storage.local.get(DONE_MSGS_KEY);
+  const map = d[DONE_MSGS_KEY] || {};
+  if (map[key]) return true;
+  const now = Date.now();
+  map[key] = now;
+  for (const k of Object.keys(map)) if (now - map[k] > 24 * 60 * 60 * 1000) delete map[k];
+  const keys = Object.keys(map);
+  if (keys.length > 300) keys.sort((a, b) => map[a] - map[b]).slice(0, keys.length - 300).forEach((k) => { delete map[k]; });
+  await chrome.storage.local.set({ [DONE_MSGS_KEY]: map });
+  return false;
+}
+
+function replySig(text, photos) {
+  const last = photos && photos[photos.length - 1];
+  return (last ? 'P:' + (last.file_unique_id || last.file_id) : '') + '|' + String(text || '').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+// Milisegundos desde que se mandó lo mismo a ese chat, o 0 si no hay repetido reciente.
+async function recentDuplicate(tid, sig) {
+  const d = await chrome.storage.local.get(RECENT_SENDS_KEY);
+  const rec = (d[RECENT_SENDS_KEY] || {})[tid];
+  const ago = rec ? Date.now() - rec.at : 0;
+  return rec && rec.sig === sig && ago < DUP_WINDOW_MS ? Math.max(ago, 1) : 0;
+}
+
+async function noteSent(tid, sig) {
+  const d = await chrome.storage.local.get(RECENT_SENDS_KEY);
+  const map = d[RECENT_SENDS_KEY] || {};
+  const now = Date.now();
+  map[tid] = { sig: sig, at: now };
+  for (const k of Object.keys(map)) if (now - map[k].at > 5 * 60 * 1000) delete map[k];
+  await chrome.storage.local.set({ [RECENT_SENDS_KEY]: map });
+}
+
 async function handleTelegramMessage(msg, s) {
   const chatId = String(msg.chat && msg.chat.id);
   const fromId = String(msg.from && msg.from.id);
@@ -945,6 +993,10 @@ async function handleTelegramMessage(msg, s) {
     return;
   }
   const who0 = isGroup ? senderName(msg) + ': ' : '';
+  if (await alreadyHandled(chatId, msg.message_id)) {
+    await logEvent('reply', 'Ignoré un mensaje de Telegram que ya había atendido (' + who0 + 'id ' + msg.message_id + '): no se repite.');
+    return;
+  }
   const photos = Array.isArray(msg.photo) && msg.photo.length ? msg.photo : null;
   const text = String((photos ? msg.caption : msg.text) || '').trim();
   if (!text && !photos) { await tgSay(s, 'Solo puedo enviar texto o una foto. Escribe tu respuesta, o adjunta una imagen (puedes ponerle texto como pie).', msg.message_id); return; }
@@ -960,6 +1012,13 @@ async function handleTelegramMessage(msg, s) {
 
   const res = await resolveTarget(msg);
   if (res.error) { await tgSay(s, '⚠️ ' + res.error, msg.message_id); return; }
+  const sig = replySig(text, photos);
+  const dupMs = await recentDuplicate(res.target.tid, sig);
+  if (dupMs) {
+    await tgSay(s, who0 + '⚠️ Ya le mandé ' + (photos ? 'esa misma foto' : 'ese mismo texto') + ' a «' + shortText(res.target.name, 40) + '» hace ' + Math.max(1, Math.round(dupMs / 1000)) + ' s; no lo repito para no duplicarlo. Si de verdad quieres mandarlo otra vez, espera unos segundos o cámbialo un poco.', msg.message_id);
+    await logEvent('reply', who0 + 'repetido a «' + shortText(res.target.name, 30) + '» en menos de ' + (DUP_WINDOW_MS / 1000) + ' s: no se manda otra vez.');
+    return;
+  }
   const rate = await replyAllowed();
   if (!rate.ok) { await tgSay(s, '⏳ ' + rate.why, msg.message_id); return; }
 
@@ -984,7 +1043,9 @@ async function handleTelegramMessage(msg, s) {
     }
     return deliverReply(target, text, s, image);
   });
-  const took = typeof r.tookMs === 'number' ? ' (' + (r.tookMs / 1000).toFixed(1) + ' s)' : '';
+  const took = typeof r.tookMs === 'number' ? ' (' + (r.tookMs / 1000).toFixed(1) + ' s' + (r.etapas ? ': ' + r.etapas : '') + ')' : '';
+  // Enviado, o sin saber si llegó: durante unos segundos no se acepta repetir lo mismo.
+  if ((r.ok && r.sent) || r.stage === 'incierto') await noteSent(target.tid, sig);
   if (r.ok && r.sent) {
     const unverified = r.fotoSinVerificar ? ' (la foto no se pudo confirmar del todo; si ves que no llegó, vuelve a mandarla)' : '';
     await tgSay(s, who0 + '✅ ' + (photos ? 'Foto enviada' : 'Enviado') + ' a ' + who + (text ? ': «' + shortText(text, 120) + '»' : '') + unverified, msg.message_id);
@@ -1027,8 +1088,14 @@ async function runReply(tabId, tid, text, send, image) {
   // minimizada, Chrome frena sus temporizadores y todo tarda más de lo normal:
   // se le da más margen antes de darla por perdida.
   const replyTimeoutMs = image ? 100 * 1000 : 60 * 1000;
+  // 1) Cargar el script en la pestaña. Si esto falla, todavía no se tocó nada.
   try {
     await withTimeout(chrome.scripting.executeScript({ target: { tabId: tabId }, files: ['replier.js'] }), SCRIPT_TIMEOUT_MS);
+  } catch (e) {
+    return { ok: false, stage: 'script', detail: 'no pude hablar con la pestaña de Facebook (' + shortText(e && e.message ? e.message : e, 60) + ').' };
+  }
+  // 2) Ejecutar la respuesta.
+  try {
     const res = await withTimeout(chrome.scripting.executeScript({
       target: { tabId: tabId },
       args: [{ tid: tid, text: text, send: send, image: image || null }],
@@ -1036,9 +1103,16 @@ async function runReply(tabId, tid, text, send, image) {
     }), replyTimeoutMs);
     return (res && res[0] && res[0].result) || { ok: false, stage: 'script', detail: 'la pestaña de Facebook no respondió.' };
   } catch (e) {
-    const detail = 'no pude hablar con la pestaña de Facebook (' + shortText(e && e.message ? e.message : e, 60) + ')' +
-      (/timeout/i.test(String(e && e.message)) ? '. Si la ventana de Chrome estaba minimizada o esa pestaña en segundo plano, puede tardar de más; déjala visible y vuelve a intentar.' : '.');
-    return { ok: false, stage: 'script', detail: detail };
+    if (/timeout/i.test(String(e && e.message))) {
+      // Un timeout NO prueba que Facebook no recibió el mensaje: la pestaña pudo
+      // seguir trabajando y enviarlo después de que nos rindiéramos. Se reporta
+      // como "incierto" (no como fallo) para que no se reenvíe a ciegas.
+      return {
+        ok: false, stage: 'incierto',
+        detail: 'se agotó el tiempo esperando a Facebook, y puede que el mensaje sí haya salido. Revisa ese chat antes de volver a mandarlo. (Si la ventana de Chrome estaba minimizada o esa pestaña en segundo plano, tarda más.)'
+      };
+    }
+    return { ok: false, stage: 'script', detail: 'no pude hablar con la pestaña de Facebook (' + shortText(e && e.message ? e.message : e, 60) + ').' };
   }
 }
 

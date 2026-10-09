@@ -1,4 +1,4 @@
-NOTIFICADOR MARKETPLACE v0.17 — LÉEME
+NOTIFICADOR MARKETPLACE v0.18 — LÉEME
 =====================================
 
 ¿Qué hace?
@@ -179,6 +179,36 @@ Si NO te llegan los avisos (pero sí la prueba)
 3. Para probar: pide a alguien que te escriba DESPUÉS de abrir la pestaña
    (los chats que ya estaban sin leer al abrirla no avisan), y no tengas
    ese chat abierto en pantalla.
+
+Cambios v0.18 (la v0.17 duplicaba el texto en la caja; sin respuestas repetidas)
+---------------------------------------------------------------------------------
+- Falla de la v0.17, reproducida con un editor Lexical real (el de Messenger): la
+  inserción rápida mandaba a la vez un evento "beforeinput" con TODO el texto y
+  un execCommand con el mismo texto, y el editor atendía los dos: el mensaje
+  quedaba DUPLICADO en la caja ("5k down payment5k down payment"), la
+  comprobación fallaba ("Facebook no aceptó el texto en la caja") y encima el
+  "vaciar" que usaba no vaciaba nada, así que los métodos de respaldo escribían
+  encima y el chat quedaba bloqueado con texto basura.
+- Ahora cada método usa UN solo mecanismo y se prueban en orden hasta que la caja
+  tenga EXACTAMENTE el mensaje: A) todo de una vez (rápido), C) otro evento de una
+  vez, D) letra por letra con pausas cortas (el de la v0.14, pero ~5 veces más
+  rápido). El que funciona se recuerda para la siguiente respuesta.
+- Antes de pasar de un método al siguiente, la caja se vacía y se COMPRUEBA que
+  quedó vacía (selectAll + beforeinput de borrado, que sí vacía Lexical). Si no se
+  puede vaciar, se detiene, te dice exactamente qué vio ("esperaba 15 caracteres,
+  vi 30: «…»") y recuerda ese texto como suyo para limpiarlo solo la próxima vez.
+- Respuestas repetidas, bloqueadas en tres capas:
+  1) un mensaje de Telegram (mismo chat + mismo id) se atiende una sola vez, aunque
+     Telegram lo vuelva a entregar o el navegador se reinicie a media operación;
+  2) el mismo texto (o la misma foto) al mismo chat de Facebook no se repite dentro
+     de 20 segundos después de enviarse o de quedar "incierto" (avisa y no lo manda);
+  3) la pestaña de Facebook atiende UNA respuesta a la vez; si llega otra mientras
+     la anterior sigue, la rechaza en vez de pelearse por la misma caja.
+- Un "se agotó el tiempo" ya no se trata como "no se envió": ahora se reporta como
+  INCIERTO (la pestaña pudo terminar de enviarlo después). Y si la pestaña ya
+  tardó demasiado antes de apretar Enviar, por seguridad ya no lo envía.
+- El registro muestra el desglose de tiempos y el método usado, p. ej.
+  "(1.9 s: abrir 0.6s · caja 0.4s · escribir A 0.3s · enviar 0.5s)".
 
 Cambios v0.17 (fotos del anuncio bloqueaban respuestas de texto; sin reintentos a ciegas)
 -------------------------------------------------------------------------------------------
