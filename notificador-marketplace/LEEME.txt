@@ -1,4 +1,4 @@
-NOTIFICADOR MARKETPLACE v0.16 — LÉEME
+NOTIFICADOR MARKETPLACE v0.17 — LÉEME
 =====================================
 
 ¿Qué hace?
@@ -179,6 +179,31 @@ Si NO te llegan los avisos (pero sí la prueba)
 3. Para probar: pide a alguien que te escriba DESPUÉS de abrir la pestaña
    (los chats que ya estaban sin leer al abrirla no avisan), y no tengas
    ese chat abierto en pantalla.
+
+Cambios v0.17 (fotos del anuncio bloqueaban respuestas de texto; sin reintentos a ciegas)
+-------------------------------------------------------------------------------------------
+- Bug grave de la v0.16: para saber si había "una foto pendiente", se buscaba
+  cualquier <img> visible en toda la conversación — y ahí también están las
+  fotos del vehículo anunciado, las de mensajes viejos y los avatares. Si el
+  chat tenía esas fotos (lo normal en Marketplace), la extensión se negaba a
+  escribir hasta un simple texto, con el error "ya hay una foto y/o texto
+  escrito...; no lo piso" aunque la caja estuviera vacía.
+- Ahora solo se bloquea por TEXTO en la caja. Para la foto que TÚ mandas por
+  Telegram, en vez de buscar "cualquier imagen", se compara qué miniatura
+  NUEVA aparece justo después de pegarla (nunca antes); eso sirve únicamente
+  para confirmar el envío de esa foto, nunca para decidir si hay un borrador.
+- El texto ahora se inserta de una sola vez (mucho más rápido); solo si el
+  editor no lo acepta así, se baja a escritura letra por letra y, si tampoco,
+  a "pegar" como respaldo — cada paso se comprueba antes de seguir.
+- Al enviar: si un método no confirma el envío, solo se prueba otro cuando la
+  caja sigue exactamente igual que antes de intentarlo. Si queda en un estado
+  intermedio (ni vacía ni igual) no se sabe qué pasó de verdad — antes se
+  seguía intentando a ciegas, arriesgando mandarlo dos veces; ahora se detiene
+  con "⚠️ No estoy seguro de si le llegó" y no reintenta solo.
+- El registro ahora anota cuánto tardó cada respuesta (segundos).
+- Importante: tras instalar esta versión, en chrome://extensions pulsa el
+  botón ⟳ (recargar) de la extensión — si no, Chrome puede seguir usando el
+  código viejo en las pestañas de Facebook que ya tenías abiertas.
 
 Cambios v0.16 (respuestas más rápidas con la ventana minimizada; sin el enlace al chat)
 ----------------------------------------------------------------------------------------

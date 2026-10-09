@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.16 — service worker (background.js)
+/* Notificador Marketplace v0.17 — service worker (background.js)
  * Recibe la lista de chats (del content script, de su propio despertador de
  * 30 segundos o del cambio de título de la pestaña) y, cuando hay un mensaje
  * nuevo sin leer, te avisa al teléfono por WhatsApp (CallMeBot) o Telegram,
@@ -984,15 +984,22 @@ async function handleTelegramMessage(msg, s) {
     }
     return deliverReply(target, text, s, image);
   });
+  const took = typeof r.tookMs === 'number' ? ' (' + (r.tookMs / 1000).toFixed(1) + ' s)' : '';
   if (r.ok && r.sent) {
-    await tgSay(s, who0 + '✅ ' + (photos ? 'Foto enviada' : 'Enviado') + ' a ' + who + (text ? ': «' + shortText(text, 120) + '»' : ''), msg.message_id);
-    await logEvent('reply', (photos ? 'Foto enviada' : 'Respuesta enviada') + ' al chat de ' + who + '.');
+    const unverified = r.fotoSinVerificar ? ' (la foto no se pudo confirmar del todo; si ves que no llegó, vuelve a mandarla)' : '';
+    await tgSay(s, who0 + '✅ ' + (photos ? 'Foto enviada' : 'Enviado') + ' a ' + who + (text ? ': «' + shortText(text, 120) + '»' : '') + unverified, msg.message_id);
+    await logEvent('reply', (photos ? 'Foto enviada' : 'Respuesta enviada') + ' al chat de ' + who + took + (r.fotoSinVerificar ? ' [foto sin verificar]' : '') + '.');
   } else if (r.ok) {
     await tgSay(s, who0 + '✍️ Lo dejé listo en el chat de ' + who + ' pero NO lo envié (tienes apagado "enviar automáticamente"). Pulsa Enter en el PC.', msg.message_id);
-    await logEvent('reply', (photos ? 'Foto dejada' : 'Respuesta escrita') + ' (sin enviar) en el chat de ' + who + '.');
+    await logEvent('reply', (photos ? 'Foto dejada' : 'Respuesta escrita') + ' (sin enviar) en el chat de ' + who + took + '.');
+  } else if (r.stage === 'incierto') {
+    // No se sabe si Facebook llegó a mandarlo: NO se reintenta solo (duplicaría
+    // si en realidad sí se envió). Se te avisa para que lo revises a mano.
+    await tgSay(s, who0 + '⚠️ No estoy seguro de si le llegó a ' + who + ': ' + r.detail, msg.message_id);
+    await logEvent('reply', 'Resultado incierto con ' + who + took + ': ' + shortText(r.detail, 100));
   } else {
     await tgSay(s, who0 + '❌ No pude ' + (photos ? 'mandar la foto a' : 'contestar a') + ' ' + who + ': ' + r.detail, msg.message_id);
-    await logEvent('reply', 'NO se pudo ' + (photos ? 'mandar la foto a' : 'contestar a') + ' ' + who + ' (' + (r.stage || '?') + '): ' + shortText(r.detail, 100));
+    await logEvent('reply', 'NO se pudo ' + (photos ? 'mandar la foto a' : 'contestar a') + ' ' + who + ' (' + (r.stage || '?') + ')' + took + ': ' + shortText(r.detail, 100));
   }
   await startReplyWindow(); // la conversación sigue: se sigue escuchando 10 min más
 }
