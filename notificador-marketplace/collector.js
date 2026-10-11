@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.21 — collector.js
+/* Notificador Marketplace v0.22 — collector.js
  * Lee la lista de chats que se ve en la página y el nombre de la cuenta de
  * Facebook que tiene la sesión iniciada. Sabe leer dos páginas:
  *   - facebook.com/messages (Messenger): filas con enlaces /t/<id>;
@@ -12,7 +12,7 @@
  */
 (() => {
   'use strict';
-  if (globalThis.mnCollectVersion === 13) return;
+  if (globalThis.mnCollectVersion === 14) return;
 
   // Líneas que no son parte del mensaje: hora relativa, "Activo ahora", marcas de no leído…
   const MONTH = '(?:ene|enero|feb|febrero|mar|marzo|abr|abril|may|mayo|jun|junio|jul|julio|ago|agosto|sep|sept|septiembre|oct|octubre|nov|noviembre|dic|diciembre|jan|january|february|march|apr|april|june|july|aug|august|september|october|november|dec|december)\\.?';
@@ -114,11 +114,34 @@
     return m ? m[1] : null;
   }
 
-  // "5 min" → 5, "2 h" → 120, "ahora" → 0. null si no es una hora relativa.
-  // Sirve para notar que llegó OTRO mensaje igual: la hora del chat vuelve a "ahora".
+  // "10:32" / "3:05 p. m." → minutos transcurridos desde esa hora de HOY (si la hora
+  // todavía no llegó hoy, era de ayer). Facebook solo pone la hora del día en
+  // mensajes de las últimas 24 h.
+  function clockAge(t) {
+    const m = /^(\d{1,2})[:.](\d{2})\s*(a\.?\s?m\.?|p\.?\s?m\.?)?$/i.exec(t);
+    if (!m) return null;
+    let h = parseInt(m[1], 10);
+    const mi = parseInt(m[2], 10);
+    if (mi > 59) return null;
+    if (m[3]) {
+      if (h < 1 || h > 12) return null;
+      h = (h % 12) + (/p/i.test(m[3]) ? 12 : 0);
+    } else if (h > 23) {
+      return null;
+    }
+    const now = new Date();
+    let age = now.getHours() * 60 + now.getMinutes() - (h * 60 + mi);
+    if (age < 0) age += 1440;
+    return age;
+  }
+
+  // "5 min" → 5, "2 h" → 120, "ahora" → 0, "10:32" → minutos desde las 10:32 de hoy.
+  // null si no es una hora conocida. Sirve para saber CUÁNDO llegó el mensaje y para
+  // notar que llegó OTRO igual: la hora del chat vuelve a "ahora".
   function ageMinutes(label) {
     const t = String(label || '').trim().toLowerCase();
     if (/^(?:ahora|justo ahora|just now|now)$/.test(t)) return 0;
+    if (/^\d{1,2}[:.]\d{2}/.test(t)) return clockAge(t);
     const m = /^(?:hace\s+)?(\d+|un|una)\s*(segundos?|seconds?|seg|min(?:utos?|utes?|s)?|mins?|horas?|hours?|hrs?|d[ií]as?|days?|semanas?|weeks?|sem|s|m|h|d|w)\.?$/.exec(t);
     if (!m) return null;
     const n = /^\d+$/.test(m[1]) ? parseInt(m[1], 10) : 1;
@@ -445,6 +468,7 @@
     return {
       info: info,
       threads: threads,
+      path: path.slice(0, 120),   // dónde está esta pestaña (para que 🔄 vuelva a la misma bandeja)
       warmup: warmup,
       focused: focused,
       kind: kind,
@@ -454,5 +478,5 @@
       accountSource: acct ? acct.source : ''
     };
   };
-  globalThis.mnCollectVersion = 13;
+  globalThis.mnCollectVersion = 14;
 })();

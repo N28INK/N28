@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.21 — service worker (background.js)
+/* Notificador Marketplace v0.22 — service worker (background.js)
  * Recibe la lista de chats (del content script, de su propio despertador de
  * 30 segundos o del cambio de título de la pestaña) y, cuando hay un mensaje
  * nuevo sin leer, te avisa al teléfono por WhatsApp (CallMeBot) o Telegram,
@@ -11,7 +11,10 @@ const TAG = '[MN-bg]';
 const DEFAULTS = {
   enabled: true, marketplaceOnly: false, pcNotify: true, channel: 'whatsapp',
   phone: '', apikey: '', tg_token: '', tg_chatid: '', accountName: '',
-  replyEnabled: false, replySend: true
+  replyEnabled: false, replySend: true,
+  mirrorMine: true,       // lo que escribes tú en Facebook también aparece en Telegram (hilo completo)
+  maxAgeMin: 120,         // no avisar de mensajes que llegaron hace más de tantos minutos
+  refreshTo: 'auto'       // adónde vuelve el botón 🔄: 'auto' (la bandeja que usabas), 'marketplace' o 'messages'
 };
 const ALARM = 'mn-keepalive';
 const ALARM_MIN = 0.5;                       // revisar cada 30 s (mínimo que permite Chrome)
@@ -23,7 +26,7 @@ const INBOX_URL = 'https://www.facebook.com/messages/';
 const COOLDOWN_MS = 60 * 1000;               // máx. 1 aviso por chat cada minuto (salvo chat "activo", ver ACTIVE_COOLDOWN_MS)
 const ACTIVE_COOLDOWN_MS = 3 * 1000;         // chats con los que contestaste hace poco: casi sin espera entre avisos
 const ACTIVE_CHAT_MS = 30 * 60 * 1000;       // minutos que un chat queda "activo" tras contestarlo desde Telegram
-const COLLECTOR_VERSION = 13;                // versión de collector.js que espera este background
+const COLLECTOR_VERSION = 14;                // versión de collector.js que espera este background
 const MP_INBOX_URL = 'https://www.facebook.com/marketplace/inbox/';
 const LOG_MAX = 200;                         // eventos que guarda el registro
 const LOG_COLLAPSE_MS = 10 * 60 * 1000;      // una misma línea repetida se cuenta (×N) en vez de inundar el registro
@@ -32,6 +35,14 @@ const FORGET_MS = 30 * 24 * 60 * 60 * 1000; // olvidar chats sin actividad en 30
 const MAX_SEEN = 500;
 const NO_LIST_WARN_MIN = 10;                 // avisar si 10 min sin ver la lista de chats
 const NO_LIST_REPEAT_MS = 4 * 60 * 60 * 1000;
+const ARRIVAL_TOL_MS = 2 * 60 * 1000;        // margen al comparar la hora de llegada de un mensaje con la última vez que miré la lista
+const CATCHUP_GAP_MS = 5 * 60 * 1000;        // si la página se recargó hace menos de esto, lo que llegó mientras tanto SÍ se avisa
+const DEDUPE_VIEWS_MS = 3 * 60 * 1000;       // el mismo mensaje visto en dos listas distintas (Messenger y bandeja de Marketplace) se avisa una vez
+const GENERIC_REPEAT_MS = 30 * 60 * 1000;    // el aviso general del título no se repite para el mismo cambio en este tiempo
+const THREAD_KEEP = 30;                      // mensajes que se recuerdan por chat para el /hilo
+const THREAD_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const MAX_THREADS = 60;
+const OWN_TG_TTL_MS = 2 * 60 * 1000;         // lo que mandaste por Telegram no se vuelve a mostrar como "escrito desde Facebook"
 
 /* ------------------------- registro ------------------------- *
  * Guarda los últimos eventos (qué se leyó, por qué se avisó o NO se avisó, qué
@@ -262,9 +273,19 @@ async function onTitle(tab, title) {
     const name = flash ? title.slice(0, flash.index).replace(/^\(\d+\)\s*/, '').trim() : '';
     // El título parpadea y se repite: un solo aviso general por mensaje.
     const gkey = count + '|' + name;
-    if (st.lastGenericKey === gkey && Date.now() - (st.lastGenericAt || 0) < 90 * 1000) {
+    if (st.lastGenericKey === gkey && Date.now() - (st.lastGenericAt || 0) < GENERIC_REPEAT_MS) {
       await logEvent('title', 'Ya mandé el aviso general de este mismo cambio de título; no lo repito.');
       return;
+    }
+    // Si la lista ya avisó (o mostró) un mensaje de esa misma persona hace poco, el parpadeo
+    // del título es el mismo mensaje: no se manda un segundo aviso.
+    if (name) {
+      const led = (await chrome.storage.local.get('mn_ledger')).mn_ledger || {};
+      const fw = firstWord(name);
+      if (fw && Object.keys(led).some((k) => k.split('|')[1] === fw && Date.now() - led[k].at < LEDGER_TTL_MS)) {
+        await logEvent('title', 'Ya avisé hace poco de un mensaje de «' + shortText(name, 25) + '»; no mando aviso general.');
+        return;
+      }
     }
     await setStatus({ lastGenericKey: gkey, lastGenericAt: Date.now() });
     if (s.marketplaceOnly) {
@@ -362,6 +383,19 @@ async function diagnose() {
         chats: Object.keys(m.mn_info || {}).length,
         anunciosConPrecio: Object.keys(m.mn_prices || {}).length,
         ultimos: Object.values(m.mn_info || {}).slice(-3).map((x) => ({ nombreCompleto: x.full, anuncio: x.listing, precio: x.price }))
+      };
+    })(),
+    sincronizacion: await (async () => {
+      const m = await chrome.storage.local.get(['mn_marks', 'mn_home', 'mn_thread', 'mn_ledger']);
+      const ago = (t) => (t ? Math.round((Date.now() - t) / 1000) + ' s' : null);
+      const marks = {};
+      Object.keys(m.mn_marks || {}).forEach((k) => { marks[k] = 'vista hace ' + ago(m.mn_marks[k]); });
+      return {
+        ultimaVezQueMireCadaLista: marks,
+        bandejaQueRecuerdoParaRefrescar: m.mn_home ? m.mn_home.url : null,
+        chatsConHilo: Object.keys(m.mn_thread || {}).length,
+        avisosRecientesEnMemoria: Object.keys(m.mn_ledger || {}).length,
+        limiteDeEdadMin: s.maxAgeMin, copiarLoQueEscriboEnFacebook: s.mirrorMine !== false, refrescarA: s.refreshTo
       };
     })(),
     registro: ((await chrome.storage.local.get('mn_log')).mn_log || []).slice(-30).map((e) =>
@@ -563,6 +597,59 @@ function enrichThread(th, infoMap, prices) {
   th.name = buyer + (th.listing ? ' · ' + th.listing : '');
 }
 
+/* ---------------- hora de llegada, mensajes viejos y avisos repetidos ----------------
+ * Cada mensaje tiene una HORA DE LLEGADA: la que marca la lista de Facebook ("3 min",
+ * "10:32"…) restada de ahora. Con ella:
+ *  - el aviso dice a qué hora llegó el mensaje (y cuánto se retrasó, si fue tarde);
+ *  - un mensaje que llegó hace más de «maxAgeMin» minutos, o que ya estaba en la lista
+ *    ANTES de la última vez que la miré (p. ej. al cambiar de carpeta o bajar por la
+ *    lista), NO se avisa: es viejo, no nuevo;
+ *  - si la página se recarga (a mano o con el botón 🔄) y llegó algo mientras cargaba,
+ *    eso sí se avisa (recuperación), pero nunca lo anterior;
+ *  - los avisos de una misma pasada salen en orden de llegada (el más viejo primero);
+ *  - el mismo mensaje visto en dos listas (Messenger y bandeja de Marketplace) se avisa una vez.
+ */
+function fmtClock(ms) {
+  try { return new Date(ms).toLocaleTimeString('es-US', { hour: 'numeric', minute: '2-digit' }); } catch (e) { return new Date(ms).toTimeString().slice(0, 5); }
+}
+// "3:45 p. m." si es de hoy; si no, con el día.
+function fmtWhen(ms, now) {
+  if (new Date(ms).toDateString() === new Date(now || Date.now()).toDateString()) return fmtClock(ms);
+  let day;
+  try { day = new Date(ms).toLocaleDateString('es-US', { weekday: 'short', day: 'numeric', month: 'short' }); } catch (e) { day = new Date(ms).toDateString(); }
+  return day + ', ' + fmtClock(ms);
+}
+function fmtAgo(min) {
+  if (min < 1) return 'unos segundos';
+  if (min < 60) return Math.round(min) + ' min';
+  const h = Math.round(min / 6) / 10;
+  return (h % 1 === 0 ? h.toFixed(0) : h.toFixed(1)) + ' h';
+}
+const firstWord = (x) => plainKey(x).split(' ')[0] || '';
+const LEDGER_TTL_MS = 10 * 60 * 1000;
+function ledgerKey(kind, th, body) {
+  return kind + '|' + firstWord(th.buyer || th.name) + '|' + plainKey(th.listing || '').slice(0, 12) + '|' + plainKey(body).slice(0, 80);
+}
+function pruneLedger(ledger, now) {
+  const ks = Object.keys(ledger).filter((k) => now - (ledger[k].at || 0) < LEDGER_TTL_MS).sort((a, b) => ledger[b].at - ledger[a].at).slice(0, 200);
+  const out = {};
+  ks.forEach((k) => { out[k] = ledger[k]; });
+  return out;
+}
+// Lo último de la fila es tuyo ("Tú: Sí, sigue disponible" → "Sí, sigue disponible").
+const mineBody = (t) => String(t || '').replace(/^(?:t[úu]|you|usted)\s*:\s*/i, '').trim();
+
+// '' = vale la pena avisar; si no, el motivo de no hacerlo.
+function staleReason(th, ctx) {
+  if (typeof th.age !== 'number') return ''; // sin hora en la fila: se decide por posición/no leído, como siempre
+  if (th.age > ctx.maxAge) return 'llegó hace ' + fmtAgo(th.age) + ' (más de ' + ctx.maxAge + ' min; se cambia en Configuración).';
+  const tol = ARRIVAL_TOL_MS + (th.age >= 60 ? 60 * 60 * 1000 : 0); // "2 h" solo es exacto a la hora
+  if (!ctx.sawChange && ctx.lastMark && ctx.arrivedAt < ctx.lastMark - tol) {
+    return 'ya estaba en la lista antes de que la mirara (llegó a las ' + fmtClock(ctx.arrivedAt) + '): no es un mensaje nuevo.';
+  }
+  return '';
+}
+
 // Núcleo: compara los chats con lo ya visto y avisa si hay algo nuevo.
 async function processScan(scan) {
   const s = await getSettings();
@@ -574,44 +661,90 @@ async function processScan(scan) {
     const mem = await chrome.storage.local.get(['mn_info', 'mn_prices']);
     for (const th of threads) if (th && th.tid) enrichThread(th, mem.mn_info || {}, mem.mn_prices || {});
   }
+  await rememberHome(scan);
 
-  const data = await chrome.storage.local.get(['mn_seen', 'mn_active']);
+  const data = await chrome.storage.local.get(['mn_seen', 'mn_active', 'mn_marks', 'mn_ledger', 'mn_tg_sent']);
   const seen = data.mn_seen || {};
   const activeMap = data.mn_active || {};
+  const marks = data.mn_marks || {};
+  const ledger = data.mn_ledger || {};
+  const tgSent = data.mn_tg_sent || {};
   const now = Date.now();
-  const toAlert = [];
+  const markKey = scan.kind || 'otra';
+  const lastMark = marks[markKey] || 0;       // la última vez que vi ESTA lista
+  const maxAge = Math.max(5, Math.min(1440, parseInt(s.maxAgeMin, 10) || DEFAULTS.maxAgeMin));
+  const mirrorOn = s.channel === 'telegram' && s.mirrorMine !== false;
+  // Página recién cargada: normalmente solo se memoriza. Pero si la lista se vio hace
+  // un momento (recarga, botón 🔄), lo que llegó mientras tanto sí se avisa.
+  const catchUpOk = !!scan.warmup && lastMark > 0 && now - lastMark < CATCHUP_GAP_MS;
+  const events = [];      // avisos por mandar: { kind: 'in' | 'out', th, at, … }
+  const tOps = [];        // para el hilo (/hilo)
+  const activate = [];    // chats que pasan a "conversación activa" (escribiste tú desde Facebook)
   let deliberateSkip = false; // la lista vio el mensaje y decidió no avisar (lo estás viendo, filtro Marketplace…)
 
   if (scan.warmup) {
     await logEvent('scan', 'Primera lectura de ' + kindName(scan.kind) + ': ' + threads.length +
-      ' chats memorizados sin avisar (' + threads.filter((t) => t.unread && !t.mine).length + ' sin leer).');
+      ' chats memorizados sin avisar (' + threads.filter((t) => t.unread && !t.mine).length + ' sin leer).' +
+      (catchUpOk ? ' La lista se vio hace poco: aviso de lo que llegó mientras recargaba.' : ''));
   }
 
   for (const th of threads) {
     if (!th || !th.tid) continue;
     const known = !!seen[th.tid];
     const prev = seen[th.tid] || {};
+    const hasAge = typeof th.age === 'number';
+    const arrivedAt = hasAge ? now - th.age * 60000 : now; // cuándo llegó el último mensaje (a ±1 min)
     // "handled" = último texto del que ya avisamos (o que decidimos no avisar).
     const cur = {
-      text: th.text, age: typeof th.age === 'number' ? th.age : null, at: now,
-      alertAt: prev.alertAt || 0, handled: prev.handled || '', pending: !!prev.pending
+      text: th.text, age: hasAge ? th.age : null, at: now,
+      alertAt: prev.alertAt || 0, handled: prev.handled || '', pending: !!prev.pending,
+      msgAt: prev.msgAt || arrivedAt, mirrored: prev.mirrored || ''
     };
     seen[th.tid] = cur;
     const changed = prev.text !== cur.text; // incluye chat nunca visto
     // Mismo texto, pero la hora del chat volvió a "ahora": llegó OTRO mensaje igual
-    // (por ejemplo dos "Hola" seguidos o dos "Envió una foto").
-    const again = known && !changed && cur.age !== null && typeof prev.age === 'number' && cur.age < prev.age;
-    if (changed || again) cur.pending = true;
+    // (por ejemplo dos "Hola" seguidos o dos "Envió una foto"). Además de ver bajar la
+    // hora, se compara la hora de llegada con la del mensaje anterior (margen 90 s).
+    const minuteLabels = hasAge && typeof prev.age === 'number' && cur.age < 60 && prev.age < 60 && typeof prev.msgAt === 'number';
+    const again = known && !changed && hasAge && typeof prev.age === 'number' &&
+      (cur.age < prev.age || (minuteLabels && arrivedAt > prev.msgAt + 90 * 1000));
+    if (changed || again) { cur.pending = true; cur.msgAt = arrivedAt; }
     if (again) cur.handled = '';
     const fresh = changed || again;
     const who = '"' + shortText(th.name, 30) + '"';
     const skip = (why) => (fresh ? logEvent('skip', 'No aviso de ' + who + ': ' + why) : null);
-    // Un chat al que le contestaste hace poco desde Telegram: estás en plena
-    // conversación, así que cada respuesta del cliente se avisa completa y casi
-    // sin espera, aunque tengas esa pestaña abierta o enfocada en el PC.
+    // Un chat al que le contestaste hace poco (desde Telegram o escribiendo tú en
+    // Facebook): estás en plena conversación, así que cada respuesta del cliente se
+    // avisa completa y casi sin espera, aunque tengas esa pestaña abierta o enfocada.
     const isActive = !!(activeMap[th.tid] && activeMap[th.tid] > now);
+    const warm = !!scan.warmup;
+    // Con la página recién cargada solo cuenta lo que llegó DESPUÉS de la última lectura.
+    const catchUp = warm && catchUpOk && hasAge && ((known && fresh) || arrivedAt >= lastMark - ARRIVAL_TOL_MS);
+    const why = fresh || cur.pending
+      ? staleReason(th, { maxAge: maxAge, lastMark: lastMark, arrivedAt: arrivedAt, sawChange: known && cur.pending })
+      : '';
 
-    if (th.mine) { cur.handled = ''; cur.pending = false; continue; } // respondiste tú
+    if (th.mine) {                                  // lo último lo escribiste tú
+      cur.handled = ''; cur.pending = false;
+      if (!fresh || th.old === true || (warm && !catchUp)) continue;
+      if (why) { await logEvent('skip', 'No muestro lo que escribiste en ' + who + ': ' + why); continue; }
+      if (s.marketplaceOnly && !th.isMarketplace) continue;
+      const body = mineBody(th.text);
+      if (!body || cur.mirrored === cur.text) continue;
+      cur.mirrored = cur.text;
+      if (matchesTgSent(tgSent[th.tid], body, now)) continue; // lo mandaste TÚ desde Telegram: ya lo viste allí
+      const key = ledgerKey('out', th, body);
+      const dup = ledger[key];
+      if (dup && dup.tid !== th.tid && now - dup.at < DEDUPE_VIEWS_MS) continue; // la otra lista ya lo mostró
+      ledger[key] = { at: now, tid: th.tid };
+      tOps.push({ tid: th.tid, name: th.name, w: 'y', t: body, at: arrivedAt });
+      if (mirrorOn) {
+        events.push({ kind: 'out', th: th, body: body, at: arrivedAt });
+        if (/^\d+$/.test(String(th.tid))) activate.push(String(th.tid));
+      }
+      continue;
+    }
+    cur.mirrored = '';
     if (cur.text === cur.handled) { cur.pending = false; continue; }
     // Solo mensajes de las últimas 24 horas: si la fila marca una hora de hace más
     // de 1 día ("ayer", "lun", "3 oct", "2 sem"…) es un chat viejo (p. ej. apareció al
@@ -619,6 +752,13 @@ async function processScan(scan) {
     // a decir "ahora" y ahí sí se avisa.
     if (th.old === true) {
       await skip('su último mensaje tiene más de 1 día (solo se avisa de mensajes de las últimas 24 horas).');
+      cur.handled = cur.text;
+      cur.pending = false;
+      continue;
+    }
+    // Más viejo que el límite de Configuración, o ya estaba en la lista antes de que la mirara.
+    if (why) {
+      await skip(why);
       cur.handled = cur.text;
       cur.pending = false;
       continue;
@@ -634,7 +774,7 @@ async function processScan(scan) {
       cur.pending = false;
       continue;
     }
-    if (scan.warmup) {                            // lista recién abierta: no avisar de chats viejos
+    if (warm && !catchUp) {                       // lista recién abierta: no avisar de chats viejos
       cur.handled = cur.text;
       cur.pending = false;
       continue;
@@ -642,6 +782,7 @@ async function processScan(scan) {
     if (th.tid === scan.openTid && !isActive) {   // lo estás mirando ahora mismo (salvo conversación activa)
       await skip('tienes ese chat abierto en pantalla.');
       deliberateSkip = true;
+      tOps.push({ tid: th.tid, name: th.name, w: 'c', t: th.text, at: arrivedAt });
       cur.handled = cur.text;
       cur.pending = false;
       continue;
@@ -660,10 +801,20 @@ async function processScan(scan) {
       cur.pending = false;
       continue;
     }
+    // El mismo mensaje ya avisado desde OTRA lista (Messenger y bandeja de Marketplace
+    // abiertas a la vez, cada una con su identificador del chat).
+    const lkey = ledgerKey('in', th, th.text);
+    const dup = ledger[lkey];
+    if (dup && dup.tid !== th.tid && now - dup.at < DEDUPE_VIEWS_MS) {
+      await skip('es el mismo mensaje del que ya avisé (lo vi en otra lista de Facebook que tienes abierta).');
+      cur.handled = cur.text;
+      cur.pending = false;
+      continue;
+    }
     // Varios mensajes seguidos del mismo chat: un aviso, y el resto queda
     // pendiente hasta que pase el tiempo de espera. En una conversación activa
-    // (le acabas de contestar desde Telegram) la espera es mucho más corta,
-    // para que cada respuesta del cliente llegue casi al instante.
+    // (le acabas de contestar) la espera es mucho más corta, para que cada
+    // respuesta del cliente llegue casi al instante.
     const cooldown = isActive ? ACTIVE_COOLDOWN_MS : COOLDOWN_MS;
     if (now - cur.alertAt < cooldown) {
       await skip('ya se avisó de este chat hace muy poco; se avisará del último mensaje enseguida.');
@@ -672,7 +823,9 @@ async function processScan(scan) {
     cur.alertAt = now;
     cur.handled = cur.text;
     cur.pending = false;
-    toAlert.push({ th: th, isActive: isActive });
+    ledger[lkey] = { at: now, tid: th.tid };
+    tOps.push({ tid: th.tid, name: th.name, w: 'c', t: th.text, at: arrivedAt });
+    events.push({ kind: 'in', th: th, isActive: isActive, at: arrivedAt });
   }
 
   // Limpieza para que el almacenamiento no crezca sin fin (la v0.4 nunca borraba).
@@ -683,14 +836,32 @@ async function processScan(scan) {
 
   const unreadCount = threads.filter((t) => t.unread && !t.mine).length;
   const mpCount = threads.filter((t) => t.isMarketplace).length;
-  await chrome.storage.local.set({ mn_seen: pruned });
+  marks[markKey] = now;
+  await chrome.storage.local.set({ mn_seen: pruned, mn_marks: marks, mn_ledger: pruneLedger(ledger, now) });
   await setStatus({
     lastScanAt: now, threads: threads.length, unread: unreadCount, marketplace: mpCount,
     kind: scan.kind || '', source: scan.source || ''
   });
   if (deliberateSkip) await setStatus({ lastSkipAt: now });
+  await appendThread(tOps);
+  for (const tid of activate) await markActive(tid);
 
-  for (const item of toAlert) await alertNewMessage(item.th, s, item.isActive);
+  // En el orden en que LLEGARON (el más viejo primero), no en el de la lista.
+  events.sort((a, b) => a.at - b.at);
+  for (const ev of events) {
+    if (ev.kind === 'out') await mirrorOwn(ev.th, ev.body, s, ev.at);
+    else await alertNewMessage(ev.th, s, ev.isActive, ev.at);
+  }
+}
+
+// Dónde está la bandeja que vigilas (sin un chat abierto): el botón 🔄 vuelve ahí.
+async function rememberHome(scan) {
+  const path = String(scan.path || '');
+  if (!/^\/(?:messages|marketplace\/inbox)/.test(path) || /\/t\/\d+/.test(path)) return;
+  const url = 'https://www.facebook.com' + path;
+  const d = await chrome.storage.local.get('mn_home');
+  if (d.mn_home && d.mn_home.url === url && Date.now() - (d.mn_home.at || 0) < 10 * 60 * 1000) return;
+  await chrome.storage.local.set({ mn_home: { url: url, at: Date.now() } });
 }
 
 async function setStatus(patch) {
@@ -698,7 +869,86 @@ async function setStatus(patch) {
   await chrome.storage.local.set({ mn_status: Object.assign({}, d.mn_status || {}, patch) });
 }
 
-async function alertNewMessage(th, s, isActive) {
+/* ---------- hilo de la conversación ----------
+ * Cada chat va guardando, en orden, lo que se dijo: lo del comprador, lo que tú escribes
+ * en Facebook y lo que mandas desde Telegram. Sirve para (1) encadenar los mensajes en
+ * Telegram (cada uno cita al anterior del mismo chat) y (2) el comando /hilo, que te
+ * manda la conversación entera. Solo guarda lo que la extensión llegó a ver.
+ */
+const CHAIN_TTL_MS = 24 * 60 * 60 * 1000;
+let threadChain = Promise.resolve();
+function appendThread(ops) {
+  if (!ops || !ops.length) return threadChain;
+  threadChain = threadChain.then(async () => {
+    try {
+      const d = await chrome.storage.local.get('mn_thread');
+      const map = d.mn_thread || {};
+      const now = Date.now();
+      for (const op of ops) {
+        const e = map[op.tid] || { name: op.name, items: [], at: now };
+        e.name = op.name || e.name;
+        const last = e.items[e.items.length - 1];
+        if (last && last.w === op.w && last.t === String(op.t).slice(0, 600) && Math.abs(last.at - op.at) < 90 * 1000) continue; // el mismo mensaje dos veces
+        e.items.push({ w: op.w, t: String(op.t).slice(0, 600), at: op.at });
+        e.items.sort((a, b) => a.at - b.at);
+        if (e.items.length > THREAD_KEEP) e.items.splice(0, e.items.length - THREAD_KEEP);
+        e.at = now;
+        map[op.tid] = e;
+      }
+      for (const k of Object.keys(map)) if (now - (map[k].at || 0) > THREAD_TTL_MS) delete map[k];
+      const ks = Object.keys(map);
+      if (ks.length > MAX_THREADS) ks.sort((a, b) => map[a].at - map[b].at).slice(0, ks.length - MAX_THREADS).forEach((k) => { delete map[k]; });
+      await chrome.storage.local.set({ mn_thread: map });
+    } catch (e) { /* el hilo es opcional */ }
+  });
+  return threadChain;
+}
+
+// Último mensaje del bot en Telegram que pertenece a ese chat: el siguiente lo cita.
+async function chainOf(tid) {
+  const d = await chrome.storage.local.get('mn_chain');
+  const e = (d.mn_chain || {})[String(tid)];
+  return e && Date.now() - e.at < CHAIN_TTL_MS ? e.id : undefined;
+}
+async function rememberChain(tid, id) {
+  if (!id || !tid) return;
+  const d = await chrome.storage.local.get('mn_chain');
+  const map = d.mn_chain || {};
+  const now = Date.now();
+  map[String(tid)] = { id: id, at: now };
+  for (const k of Object.keys(map)) if (now - map[k].at > CHAIN_TTL_MS) delete map[k];
+  await chrome.storage.local.set({ mn_chain: map });
+}
+
+// Lo que mandaste TÚ por Telegram a cada chat: cuando la lista de Facebook lo muestre
+// como "Tú: …", no se vuelve a copiar a Telegram como si lo hubieras escrito en Facebook.
+const PHOTO_ROW_RE = /\b(?:foto|photo|imagen|image|archivo|attachment|adjunto|pic)\b/i;
+async function noteTgSent(tid, text, photo) {
+  if (!tid) return;
+  const d = await chrome.storage.local.get('mn_tg_sent');
+  const map = d.mn_tg_sent || {};
+  const now = Date.now();
+  const list = (map[tid] || []).filter((e) => now - e.at < OWN_TG_TTL_MS * 5);
+  list.push({ n: plainKey(text), photo: !!photo, at: now });
+  map[tid] = list.slice(-10);
+  for (const k of Object.keys(map)) if (!map[k].length || now - map[k][map[k].length - 1].at > OWN_TG_TTL_MS * 5) delete map[k];
+  await chrome.storage.local.set({ mn_tg_sent: map });
+}
+function matchesTgSent(list, body, now) {
+  if (!list || !list.length) return false;
+  const b = plainKey(String(body).replace(/…$|\.\.\.$/, ''));
+  return list.some((e) => {
+    if (now - e.at > OWN_TG_TTL_MS) return false;
+    if (e.photo && PHOTO_ROW_RE.test(body)) return true;
+    if (!e.n || !b) return false;
+    const k = Math.min(40, e.n.length, b.length);
+    return e.n.slice(0, k) === b.slice(0, k);
+  });
+}
+
+async function alertNewMessage(th, s, isActive, arrivedAt) {
+  const now = Date.now();
+  const at = arrivedAt || now;
   const where = th.isMarketplace ? 'Marketplace' : 'Messenger';
   const link = th.link || (INBOX_URL + 't/' + th.tid + '/');
   const buyer = mdSafe(th.buyer || th.name);
@@ -707,8 +957,11 @@ async function alertNewMessage(th, s, isActive) {
   const ad = th.isMarketplace && th.listing ? mdSafe(th.listing) : '';
   const price = th.isMarketplace && th.price ? mdSafe(th.price) : '';
   const whoBlock = buyer + (ad ? ' • ' + ad : '') + (price ? '\n' + price : '');
+  // Hora en que LLEGÓ el mensaje; si el aviso salió tarde, también cuánto se retrasó.
+  const lateMin = Math.round((now - at) / 60000);
+  const clock = fmtClock(at) + (lateMin >= 3 ? ' (hace ' + fmtAgo(lateMin) + ')' : '');
   const text =
-    (isActive ? '💬 *Respuesta de ' + buyer + '*\n' : '🔔 *Nuevo mensaje en ' + where + '*\n') +
+    (isActive ? '💬 *Respuesta de ' + buyer + '*' : '🔔 *Nuevo mensaje en ' + where + '*') + ' · ' + clock + '\n' +
     accountLine(await accountName(s)) + '\n' +
     (isActive ? (ad ? ad + (price ? ' • ' + price : '') + '\n' : '') : 'Escribió\n' + whoBlock + '\n\n') +
     '"' + th.text + '"';
@@ -728,10 +981,13 @@ async function alertNewMessage(th, s, isActive) {
   // para que si Windows/Chrome la retrasan o la bloquean no se retrase el aviso.
   if (s.pcNotify) {
     const id = th.src === 'texto' ? 'mn-open-inbox-mp-' : 'mn-thread-' + th.tid + '-';
-    notifyPC(id + Date.now(), 'Nuevo mensaje de ' + (th.buyer || th.name), (ad ? ad + (price ? ' • ' + price : '') + ': ' : '') + th.text);
+    notifyPC(id + Date.now(), 'Nuevo mensaje de ' + (th.buyer || th.name), fmtClock(at) + ' · ' + (ad ? ad + (price ? ' • ' + price : '') + ': ' : '') + th.text);
   }
   const via = s.channel === 'telegram' ? 'Telegram' : 'WhatsApp';
-  const r = await sendNotification(full, s);
+  // En Telegram cada mensaje cita al anterior de ese mismo chat: así se ve el hilo.
+  const replyTo = s.channel === 'telegram' ? await chainOf(th.tid) : undefined;
+  const r = await sendNotification(full, s, { replyTo: replyTo });
+  if (r.ok && r.messageId) await rememberChain(th.tid, r.messageId);
   if (r.ok && canReply) {
     await rememberTarget(r.messageId, th);
     await startReplyWindow();
@@ -748,10 +1004,33 @@ async function alertNewMessage(th, s, isActive) {
   }
 }
 
+// Lo que escribes TÚ en Facebook (en el PC o en el celular) también llega a Telegram,
+// sin sonido, citando el mensaje anterior de ese chat, para que el hilo esté completo.
+async function mirrorOwn(th, body, s, at) {
+  const buyer = mdSafe(th.buyer || th.name);
+  const ad = th.isMarketplace && th.listing ? mdSafe(th.listing) : '';
+  const media = /^(?:enviaste|you sent|sent)\b/i.test(body);
+  const text =
+    '✍️ Tú, desde Facebook · ' + fmtClock(at) + '\n' +
+    'Para ' + buyer + (ad ? ' • ' + ad : '') + '\n\n' +
+    (media ? '📎 ' + body : '"' + body + '"');
+  const r = await sendNotification(text, s, { replyTo: await chainOf(th.tid), silent: true });
+  if (r.ok) {
+    if (r.messageId) {
+      await rememberTarget(r.messageId, th);
+      await rememberChain(th.tid, r.messageId);
+    }
+    await logEvent('ok', 'Lo que escribiste en Facebook se copió a Telegram: "' + shortText(th.name, 30) + '" — ' + shortText(body, 50));
+  } else {
+    await setStatus({ lastError: r.message });
+    await logEvent('err', 'NO se pudo copiar a Telegram lo que escribiste en "' + shortText(th.name, 30) + '": ' + shortText(r.message, 120));
+  }
+}
+
 /* ------------------- respuestas desde Telegram -------------------
  * Tú escribes A MANO en Telegram (con "Responder" sobre el aviso del chat) y la
  * extensión escribe ese texto en ese chat de Messenger y lo envía.
- *  - Nada se manda solo: no hay botones ni respuestas automáticas.
+ *  - Nada se manda solo: no hay respuestas automáticas (el único botón, 🔄, solo recarga Facebook).
  *  - Solo se obedecen mensajes de TU cuenta de Telegram (la del ID guardado).
  *  - El bot lee tus mensajes con getUpdates (sin servidor). Solo un programa a
  *    la vez puede leer un mismo bot.
@@ -762,7 +1041,7 @@ const REPLY_MAX_AGE_S = 30 * 60;          // ignora mensajes de Telegram más vi
 const REPLY_MAX_LEN = 1500;
 const REPLY_PER_MIN = 5;
 const REPLY_PER_HOUR = 40;
-const MAX_TARGETS = 60;
+const MAX_TARGETS = 150;
 const REPLY_MAX_IMAGE_BYTES = 8 * 1024 * 1024; // no todas las fotos de Telegram bajan comprimidas
 
 let pollBusy = false;
@@ -848,14 +1127,57 @@ async function downloadTelegramPhoto(s, fileId) {
 }
 
 // Mensaje del bot para ti (confirmaciones y avisos de error). No es un aviso de chat.
-function tgSay(s, text, replyTo) {
-  return tgApi(s, 'sendMessage', {
+function tgSay(s, text, replyTo, extra) {
+  return tgApi(s, 'sendMessage', Object.assign({
     chat_id: String(s.tg_chatid).trim(),
     text: String(text).slice(0, 3500),
     reply_to_message_id: replyTo || undefined,
     allow_sending_without_reply: true,
     disable_web_page_preview: true
+  }, extra || {}), 15000);
+}
+
+// Igual que tgSay, pero el mensaje queda ligado a ESE chat: se puede contestar sobre
+// él y el siguiente aviso de ese chat lo cita (hilo seguido).
+async function tgSayAbout(s, target, text, replyTo) {
+  const r = await tgSay(s, text, replyTo);
+  const id = r && r.json && r.json.ok && r.json.result && r.json.result.message_id;
+  if (id && target && target.tid) {
+    await rememberTarget(id, target);
+    await rememberChain(target.tid, id);
+  }
+  return r;
+}
+
+/* ---- botón 🔄 y menú del bot ----
+ * Un teclado fijo con «🔄 Refrescar Marketplace» (se muestra una vez por versión; el
+ * comando /teclado lo vuelve a poner) y el menú de comandos del bot.
+ */
+const KB_VERSION = 22;
+const REFRESH_LABEL = '🔄 Refrescar Marketplace';
+const KEYBOARD = { keyboard: [[{ text: REFRESH_LABEL }]], resize_keyboard: true, is_persistent: true };
+const REFRESH_RE = /^(?:\/(?:refrescar|recargar|actualizar|refresh|reload)(?:@\w+)?|🔄\s*refrescar(?:\s+marketplace)?)(?:\s+(forzar|ya|force))?\s*$/i;
+const HILO_RE = /^\/(?:hilo|historial|conversaci[oó]n|thread)(?:@\w+)?(?:\s|$)/i;
+const KB_RE = /^\/(?:teclado|keyboard)(?:@\w+)?\s*$/i;
+
+async function keyboardFor(s) {
+  if (!replyActive(s)) return null;
+  const d = await chrome.storage.local.get('mn_kb');
+  return d.mn_kb === KB_VERSION ? null : KEYBOARD;
+}
+
+async function ensureBotMenu(s) {
+  const d = await chrome.storage.local.get('mn_cmds');
+  if (d.mn_cmds === KB_VERSION) return;
+  const r = await tgApi(s, 'setMyCommands', {
+    commands: [
+      { command: 'refrescar', description: '🔄 Recargar Facebook y volver a la bandeja de Marketplace' },
+      { command: 'pantalla', description: '📷 Captura del chat (responde a su aviso)' },
+      { command: 'hilo', description: '🧵 Conversación completa del chat (responde a su aviso)' },
+      { command: 'ayuda', description: 'Cómo contestar los chats' }
+    ]
   }, 15000);
+  if (r.json && r.json.ok) await chrome.storage.local.set({ mn_cmds: KB_VERSION });
 }
 
 // Cada aviso de chat que sale por Telegram guarda a qué chat pertenece (por el id del mensaje del bot).
@@ -922,17 +1244,15 @@ async function pollLoop() {
   }
 }
 
-// Cada 30 s (alarma): si hay una ventana abierta se sigue escuchando; si no, una lectura rápida.
+// Cada 30 s (alarma): se sigue escuchando a Telegram TODO el tiempo (no solo tras un
+// aviso), para que el botón 🔄, /pantalla, /hilo o una respuesta se atiendan al instante
+// y no hasta 30 s después.
 async function replyTick() {
   const s = await getSettings();
   if (!replyActive(s)) return;
-  const d = await chrome.storage.local.get('mn_reply_until');
-  if ((d.mn_reply_until || 0) > Date.now()) {
-    replyUntil = d.mn_reply_until;
-    if (!pollLoopOn) pollLoop().catch((e) => console.error(TAG, e));
-  } else {
-    await pollTelegram(0);
-  }
+  replyUntil = Math.max(replyUntil, Date.now() + 2 * 60 * 1000);
+  await chrome.storage.local.set({ mn_reply_until: replyUntil });
+  if (!pollLoopOn) pollLoop().catch((e) => console.error(TAG, e));
 }
 
 async function reportPollError(r) {
@@ -972,6 +1292,7 @@ async function pollTelegram(timeoutSec) {
       }
       return;
     }
+    await ensureBotMenu(s);
     const r = await tgApi(s, 'getUpdates', { offset: st.mn_tg_offset || 0, timeout: timeoutSec || 0, allowed_updates: ['message'] }, (timeoutSec || 0) * 1000 + 15000);
     if (!r.json || !r.json.ok) { await reportPollError(r); return; }
     if (lastPollErrKey) { lastPollErrKey = ''; await setStatus({ replyError: '' }); }
@@ -1024,7 +1345,11 @@ const REPLY_HELP =
   '1. Mantén pulsado el aviso del chat y elige «Responder».\n' +
   '2. Escribe tu texto, o adjunta una foto (con o sin texto como pie), y envíalo.\n' +
   'La extensión lo escribe (o pega la foto) en ese chat de Facebook y te confirma.\n' +
-  'Para ver cómo está un chat: responde a su aviso con /pantalla y te mando una captura de ese chat.';
+  'Respondiendo al aviso de un chat también puedes usar:\n' +
+  '• /pantalla → una captura de ese chat\n' +
+  '• /hilo → toda la conversación (lo del comprador y lo tuyo, con horas)\n' +
+  'Botón «🔄 Refrescar Marketplace» (o /refrescar): recarga Facebook y vuelve a la bandeja de Marketplace.\n' +
+  'Lo que escribes tú directamente en Facebook también se copia aquí, en el mismo hilo.';
 
 // Nombre para el registro y las confirmaciones cuando el chat configurado es un
 // grupo (varias personas pueden contestar): "Juan", "@juanperez" o "alguien".
@@ -1229,6 +1554,202 @@ async function handleScreenRequest(msg, s, who0) {
   await startReplyWindow();
 }
 
+/* ---- 🔄 Refrescar: recarga Facebook y vuelve a la bandeja de Marketplace ----
+ * El botón «🔄 Refrescar Marketplace» (o /refrescar) recarga la pestaña que vigila tus
+ * chats y comprueba que de verdad quedó en la bandeja (y que ve los chats):
+ *  - «auto» (lo normal): vuelve a la MISMA bandeja que estabas usando (Messenger o la
+ *    bandeja de Marketplace); si estabas dentro de un chat o la página se desvió, regresa
+ *    a la última bandeja que vio;
+ *  - o fuerza «Bandeja de Marketplace» / «Messenger» según Configuración.
+ * No toca otras pestañas de Facebook. Si no hay ninguna pestaña de bandeja, abre una.
+ * Si hay un texto a medio escribir en el chat, NO recarga (lo perderías); con
+ * «/refrescar forzar» sí. Corre en la misma cola que las respuestas, nunca encima de una.
+ */
+const isInboxUrl = (u) => /^https:\/\/www\.facebook\.com\/(?:messages|marketplace\/inbox)(?:[/?#]|$)/.test(u || '');
+const REFRESH_WAIT_LOAD_MS = 30 * 1000;
+const REFRESH_WAIT_LIST_MS = 25 * 1000;
+let refreshing = false;
+let lastRefreshAt = 0;
+
+function inboxTarget(mode, tab, home) {
+  if (mode === 'marketplace') return MP_INBOX_URL;
+  if (mode === 'messages') return INBOX_URL;
+  let path = '';
+  try { path = new URL(tab.url).pathname; } catch (e) { path = ''; }
+  // ya está en una bandeja (sin un chat abierto): se recarga esa misma
+  if (/^\/(?:marketplace\/inbox|messages)/.test(path) && !/\/t\/\d+/.test(path)) return String(tab.url).split('#')[0];
+  return (home && home.url) || INBOX_URL;
+}
+
+// Texto a medio escribir en la caja del chat (un borrador tuyo): recargar lo perdería.
+async function tabDraft(tabId) {
+  try {
+    const res = await withTimeout(chrome.scripting.executeScript({
+      target: { tabId: tabId },
+      func: () => {
+        const boxes = Array.from(document.querySelectorAll('[contenteditable="true"][role="textbox"], div[contenteditable="true"][aria-label]'))
+          .filter((b) => !/buscar|search/i.test(b.getAttribute('aria-label') || ''));
+        for (const b of boxes) {
+          const t = (b.innerText || '').replace(/[​\s]+/g, ' ').trim();
+          if (t) return t.slice(0, 40);
+        }
+        return '';
+      }
+    }), 8000);
+    return (res && res[0] && res[0].result) || '';
+  } catch (e) {
+    return ''; // pestaña dormida o sin acceso: no hay borrador que proteger
+  }
+}
+
+// Espera a que la página recargada muestre la lista de chats. Cada lectura buena
+// pasa por processScan (así lo que llegó mientras recargaba se avisa, y lo viejo no).
+async function waitForList(tabId, ms) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < ms) {
+    try {
+      const scan = await collectFromTab(tabId);
+      if (scan && scan.threads && scan.threads.length) {
+        enqueue(scan);
+        return scan;
+      }
+    } catch (e) { /* sigue cargando */ }
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+  return null;
+}
+
+async function refreshInbox(s, force) {
+  let tabs = [];
+  try { tabs = await chrome.tabs.query({ url: FB_URLS }); } catch (e) { tabs = []; }
+  const inbox = tabs.filter((t) => isInboxUrl(t.url));
+  const mem = await chrome.storage.local.get('mn_home');
+  const mode = s.refreshTo === 'marketplace' || s.refreshTo === 'messages' ? s.refreshTo : 'auto';
+  let tab = null;
+  let created = false;
+
+  if (!inbox.length) {
+    const url = inboxTarget(mode, { url: '' }, mem.mn_home);
+    try {
+      tab = await chrome.tabs.create({ url: url, active: false, pinned: true });
+    } catch (e) {
+      // Chrome sigue abierto pero sin ninguna ventana: se abre una (sin quitarte el foco).
+      try {
+        const w = await chrome.windows.create({ url: url, focused: false });
+        tab = w && w.tabs && w.tabs[0];
+      } catch (e2) {
+        return { ok: false, detail: 'no había ninguna pestaña de tus chats y no pude abrir una (' + shortText(e2 && e2.message ? e2.message : e2, 60) + ').' };
+      }
+      if (!tab) return { ok: false, detail: 'no había ninguna pestaña de tus chats y no pude abrir una.' };
+    }
+    created = true;
+  } else {
+    // La que ya muestra la bandeja que prefieres (si hay dos abiertas).
+    const want = mode === 'marketplace' ? /\/marketplace\/inbox/ : (mode === 'messages' ? /\/messages/ : null);
+    tab = (want && inbox.find((t) => want.test(t.url))) || inbox[0];
+    if (!force) {
+      const draft = await tabDraft(tab.id);
+      if (draft) {
+        return { ok: false, stage: 'borrador', detail: 'hay un texto escrito a medias en el chat de Facebook («' + shortText(draft, 30) + '…»). No recargo para que no lo pierdas: envíalo o bórralo y vuelve a pulsar 🔄, o escribe «/refrescar forzar» si no importa.' };
+      }
+    }
+    const target = inboxTarget(mode, tab, mem.mn_home);
+    const loaded = waitTabComplete(tab.id, REFRESH_WAIT_LOAD_MS);
+    try {
+      if (String(tab.url).split('#')[0] === target) await chrome.tabs.reload(tab.id);
+      else await chrome.tabs.update(tab.id, { url: target });
+    } catch (e) {
+      return { ok: false, detail: 'Chrome no me dejó recargar la pestaña (' + shortText(e && e.message ? e.message : e, 60) + ').' };
+    }
+    await loaded;
+  }
+  if (created) await waitTabComplete(tab.id, REFRESH_WAIT_LOAD_MS);
+
+  let scan = await waitForList(tab.id, REFRESH_WAIT_LIST_MS);
+  let cur = null;
+  try { cur = await chrome.tabs.get(tab.id); } catch (e) { cur = null; }
+  let path = '';
+  try { path = new URL(cur && cur.url).pathname; } catch (e) { path = ''; }
+  // Facebook mandó la pestaña a otro sitio (inicio de sesión, verificación, el feed…): una vez más a la bandeja.
+  if (!scan && cur && !/^\/(?:messages|marketplace\/inbox)/.test(path) && !/login|checkpoint|recover/i.test(path)) {
+    const loaded2 = waitTabComplete(tab.id, REFRESH_WAIT_LOAD_MS);
+    try { await chrome.tabs.update(tab.id, { url: inboxTarget(mode, { url: '' }, mem.mn_home) }); } catch (e) { /* se informa abajo */ }
+    await loaded2;
+    scan = await waitForList(tab.id, REFRESH_WAIT_LIST_MS);
+    try { cur = await chrome.tabs.get(tab.id); path = new URL(cur.url).pathname; } catch (e) { /* nada */ }
+  }
+  if (!scan) {
+    const why = /login|checkpoint|recover/i.test(path)
+      ? 'Facebook está pidiendo iniciar sesión o verificar tu cuenta (página «' + shortText(path, 40) + '»). Entra en el PC y resuélvelo.'
+      : 'recargué la página pero no veo la lista de chats (estoy en «' + shortText(path || '?', 40) + '»). Puede que Facebook siga cargando; revisa el PC.';
+    return { ok: false, detail: why };
+  }
+  const marketplace = scan.threads.filter((t) => t.isMarketplace).length;
+  return {
+    ok: true, created: created, path: path, kind: scan.kind,
+    threads: scan.threads.length, marketplace: marketplace,
+    unread: scan.threads.filter((t) => t.unread && !t.mine).length
+  };
+}
+
+async function handleRefreshRequest(msg, s, who0, force) {
+  if (refreshing) { await tgSay(s, '⏳ Ya estoy refrescando Facebook; espera a que termine.', msg.message_id); return; }
+  const since = Date.now() - lastRefreshAt;
+  if (since < 15 * 1000) { await tgSay(s, '⏳ Acabo de refrescar hace ' + Math.max(1, Math.round(since / 1000)) + ' s. Espera un momento.', msg.message_id); return; }
+  refreshing = true;
+  try {
+    await logEvent('reply', who0 + 'pide refrescar Facebook' + (force ? ' (forzado)' : '') + '.');
+    const r = await queueReply(async (wasBusy) => {
+      if (wasBusy) await tgSay(s, '⏳ Refresco Facebook en cuanto termine lo que estoy haciendo…', msg.message_id);
+      return refreshInbox(s, force);
+    });
+    if (r.stage !== 'borrador') lastRefreshAt = Date.now(); // negarse por un borrador no cuenta como refresco
+    if (r.ok) {
+      const donde = r.kind === 'marketplace' ? 'Bandeja de Marketplace (facebook.com/marketplace/inbox)' : 'Messenger (facebook.com/messages)';
+      await tgSay(s, who0 + '✅ Facebook actualizado · ' + fmtClock(Date.now()) + '\n' +
+        '📍 ' + donde + '\n' +
+        '💬 ' + r.threads + ' chats · ' + r.marketplace + ' de Marketplace · ' + r.unread + ' sin leer' +
+        (r.created ? '\n(No había ninguna pestaña de tus chats: abrí una nueva y la fijé.)' : '') +
+        (r.marketplace === 0 ? '\n⚠️ Veo chats pero ninguno de Marketplace: revisa en el PC que Facebook esté en la carpeta/bandeja de Marketplace.' : ''), msg.message_id);
+      await logEvent('reply', 'Facebook refrescado: ' + (r.kind === 'marketplace' ? 'bandeja de Marketplace' : 'Messenger') + ', ' + r.threads + ' chats (' + r.marketplace + ' de Marketplace, ' + r.unread + ' sin leer).');
+    } else {
+      await tgSay(s, who0 + (r.stage === 'borrador' ? '⚠️ No recargué: ' : '❌ No pude refrescar Facebook: ') + r.detail, msg.message_id);
+      await logEvent('reply', 'NO se pudo refrescar Facebook: ' + shortText(r.detail, 110));
+    }
+  } finally {
+    refreshing = false;
+  }
+}
+
+/* ---- /hilo: la conversación entera de ese chat ---- */
+async function handleHiloRequest(msg, s, who0) {
+  const res = await resolveTarget(msg);
+  if (res.error) { await tgSay(s, '⚠️ ' + res.error, msg.message_id); return; }
+  const t = res.target;
+  const d = await chrome.storage.local.get('mn_thread');
+  const e = (d.mn_thread || {})[t.tid];
+  const head = '🧵 Hilo con «' + shortText(t.name, 60) + '»';
+  if (!e || !e.items || !e.items.length) {
+    await tgSay(s, head + '\n\nTodavía no he visto mensajes de este chat. El hilo se arma con lo que la extensión ve desde que vigila (mensajes del comprador, lo que escribes en Facebook y lo que mandas desde aquí).', msg.message_id);
+    return;
+  }
+  const now = Date.now();
+  const first = (firstWord(t.name) || 'comprador');
+  const label = { c: '👤 ' + (String(t.name).split(/\s[·•]\s/)[0].trim().split(' ')[0] || first), y: '🧑 Tú (Facebook)', t: '📲 Tú (Telegram)' };
+  const lines = e.items.map((it) => fmtWhen(it.at, now) + ' — ' + (label[it.w] || '•') + ': ' + it.t);
+  let keep = [];
+  let size = head.length + 120;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (size + lines[i].length + 2 > 3300 && keep.length) break;
+    keep.unshift(lines[i]);
+    size += lines[i].length + 2;
+  }
+  const more = lines.length - keep.length;
+  await tgSay(s, head + (more ? '\n(' + more + ' mensajes más antiguos no caben aquí)' : '') + '\n\n' + keep.join('\n\n') +
+    '\n\n— Solo lo que la extensión llegó a ver; si mandaste varios mensajes seguidos en menos de unos segundos, la lista de Facebook solo muestra el último.', msg.message_id);
+  await logEvent('reply', who0 + 'pide el hilo del chat de «' + shortText(t.name, 30) + '» (' + e.items.length + ' mensajes).');
+}
+
 async function handleTelegramMessage(msg, s) {
   const chatId = String(msg.chat && msg.chat.id);
   const fromId = String(msg.from && msg.from.id);
@@ -1257,8 +1778,13 @@ async function handleTelegramMessage(msg, s) {
   const text = String((photos ? msg.caption : msg.text) || '').trim();
   if (!text && !photos) { await tgSay(s, 'Solo puedo enviar texto o una foto. Escribe tu respuesta, o adjunta una imagen (puedes ponerle texto como pie).', msg.message_id); return; }
   if (!photos) {
-    if (/^\/(?:start|ayuda|help)\b/i.test(text)) { await tgSay(s, REPLY_HELP, msg.message_id); return; }
-    if (text.startsWith('/') && !SCREEN_RE.test(text)) { await tgSay(s, 'No conozco ese comando.\n\n' + REPLY_HELP, msg.message_id); return; }
+    if (/^\/(?:start|ayuda|help)\b/i.test(text) || KB_RE.test(text)) {
+      // La ayuda (y /teclado) vuelve a poner el botón 🔄 abajo.
+      const r = await tgSay(s, REPLY_HELP, msg.message_id, { reply_markup: KEYBOARD });
+      if (r.json && r.json.ok) await chrome.storage.local.set({ mn_kb: KB_VERSION });
+      return;
+    }
+    if (text.startsWith('/') && !SCREEN_RE.test(text) && !REFRESH_RE.test(text) && !HILO_RE.test(text)) { await tgSay(s, 'No conozco ese comando.\n\n' + REPLY_HELP, msg.message_id); return; }
   }
   if (Date.now() / 1000 - (msg.date || 0) > REPLY_MAX_AGE_S) {
     await logEvent('reply', 'Ignoré un mensaje de Telegram (' + who0 + 'más de 30 minutos de antigüedad).');
@@ -1266,7 +1792,12 @@ async function handleTelegramMessage(msg, s) {
   }
   if (text.length > REPLY_MAX_LEN) { await tgSay(s, 'Ese ' + (photos ? 'pie de foto' : 'mensaje') + ' es muy largo (máximo ' + REPLY_MAX_LEN + ' caracteres).', msg.message_id); return; }
 
-  if (!photos && SCREEN_RE.test(text)) { await handleScreenRequest(msg, s, who0); return; }
+  if (!photos) {
+    const rm = REFRESH_RE.exec(text);
+    if (rm) { await handleRefreshRequest(msg, s, who0, !!rm[1]); return; }
+    if (HILO_RE.test(text)) { await handleHiloRequest(msg, s, who0); return; }
+    if (SCREEN_RE.test(text)) { await handleScreenRequest(msg, s, who0); return; }
+  }
   const res = await resolveTarget(msg);
   if (res.error) { await tgSay(s, '⚠️ ' + res.error, msg.message_id); return; }
   const sig = replySig(text, photos);
@@ -1293,6 +1824,9 @@ async function handleTelegramMessage(msg, s) {
   // En un grupo, quién contestó queda en el registro y en la confirmación (para
   // que el equipo sepa quién le respondió a cuál comprador).
   await logEvent('reply', who0 + (photos ? 'manda una foto' : 'responde') + ' al chat de ' + who + (text ? ': "' + shortText(text, 50) + '"' : '') + '.');
+  // Mientras se escribe y después, la lista de Facebook mostrará «Tú: …»: eso no se copia
+  // a Telegram como si lo hubieras escrito en Facebook (ya lo tienes aquí).
+  await noteTgSent(target.tid, text, !!photos);
   const r = await queueReply(async (wasBusy) => {
     if (wasBusy) {
       await tgSay(s, '⏳ En cola para ' + who + ': contesto en cuanto termine la respuesta anterior…', msg.message_id);
@@ -1302,10 +1836,14 @@ async function handleTelegramMessage(msg, s) {
   });
   const took = typeof r.tookMs === 'number' ? ' (' + (r.tookMs / 1000).toFixed(1) + ' s' + (r.etapas ? ': ' + r.etapas : '') + ')' : '';
   // Enviado, o sin saber si llegó: durante unos segundos no se acepta repetir lo mismo.
-  if ((r.ok && r.sent) || r.stage === 'incierto') await noteSent(target.tid, sig);
+  if ((r.ok && r.sent) || r.stage === 'incierto') {
+    await noteSent(target.tid, sig);
+    await noteTgSent(target.tid, text, !!photos);
+  }
   if (r.ok && r.sent) {
     const unverified = r.fotoSinVerificar ? ' (la foto no se pudo confirmar del todo; si ves que no llegó, vuelve a mandarla)' : '';
-    await tgSay(s, who0 + '✅ ' + (photos ? 'Foto enviada' : 'Enviado') + ' a ' + who + (text ? ': «' + shortText(text, 120) + '»' : '') + unverified, msg.message_id);
+    await appendThread([{ tid: target.tid, name: target.name, w: 't', t: (photos ? '📷 ' : '') + (text || 'foto'), at: Date.now() }]);
+    await tgSayAbout(s, target, who0 + '✅ ' + (photos ? 'Foto enviada' : 'Enviado') + ' a ' + who + (text ? ': «' + shortText(text, 120) + '»' : '') + unverified, msg.message_id);
     await logEvent('reply', (photos ? 'Foto enviada' : 'Respuesta enviada') + ' al chat de ' + who + took + (r.fotoSinVerificar ? ' [foto sin verificar]' : '') + '.');
   } else if (r.ok) {
     await tgSay(s, who0 + '✍️ Lo dejé listo en el chat de ' + who + ' pero NO lo envié (tienes apagado "enviar automáticamente"). Pulsa Enter en el PC.', msg.message_id);
@@ -1493,7 +2031,8 @@ async function sendWhatsApp(text, s) {
   return { ok: ok, reason: ok ? '' : 'api', message: ok ? '' : 'CallMeBot respondió: ' + stripHtml(r.body || 'HTTP ' + r.status) };
 }
 
-async function sendTelegram(text, s) {
+async function sendTelegram(text, s, opts) {
+  opts = opts || {};
   const token = String(s.tg_token || '').trim();
   const chatId = String(s.tg_chatid || '').trim();
   if (!/^\d+:[\w-]+$/.test(token) || !/^-?\d+$/.test(chatId)) {
@@ -1501,16 +2040,24 @@ async function sendTelegram(text, s) {
       'Falta (o está mal escrito) el token de tu bot o tu ID de Telegram. Abre la Configuración de la extensión.');
     return { ok: false, reason: 'missing-config', message: 'Falta configurar Telegram (token o ID).' };
   }
+  // Telegram no usa el *negrita* de WhatsApp: texto plano, sin formato.
+  const payload = { chat_id: chatId, text: text.replace(/\*/g, ''), disable_web_page_preview: true };
+  if (opts.replyTo) { payload.reply_to_message_id = opts.replyTo; payload.allow_sending_without_reply = true; }
+  if (opts.silent) payload.disable_notification = true;
+  const kb = await keyboardFor(s);
+  if (kb) payload.reply_markup = kb;
   const r = await fetchText('https://api.telegram.org/bot' + token + '/sendMessage', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    // Telegram no usa el *negrita* de WhatsApp: texto plano, sin formato.
-    body: JSON.stringify({ chat_id: chatId, text: text.replace(/\*/g, ''), disable_web_page_preview: true })
+    body: JSON.stringify(payload)
   });
   if (r.error) return { ok: false, reason: 'network', message: 'Sin conexión con Telegram: ' + r.error };
   let json = null;
   try { json = JSON.parse(r.body); } catch (e) { /* respuesta no JSON */ }
-  if (json && json.ok === true) return { ok: true, message: '', messageId: json.result && json.result.message_id };
+  if (json && json.ok === true) {
+    if (kb) await chrome.storage.local.set({ mn_kb: KB_VERSION });
+    return { ok: true, message: '', messageId: json.result && json.result.message_id };
+  }
   let hint = '';
   if (r.status === 401 || r.status === 404) hint = ' (revisa el token del bot)';
   else if (r.status === 400 || r.status === 403) hint = ' (revisa tu ID y que le hayas escrito "hola" a tu bot)';
@@ -1518,9 +2065,9 @@ async function sendTelegram(text, s) {
 }
 
 // Manda el aviso por el canal elegido en la configuración
-async function sendNotification(text, s) {
+async function sendNotification(text, s, opts) {
   s = s || await getSettings();
-  return s.channel === 'telegram' ? sendTelegram(text, s) : sendWhatsApp(text, s);
+  return s.channel === 'telegram' ? sendTelegram(text, s, opts) : sendWhatsApp(text, s);
 }
 
 async function handleTest() {
@@ -1546,3 +2093,7 @@ async function handleTest() {
   await setStatus({ lastError: r.message });
   return { ok: false, message: r.message };
 }
+
+// Al despertar el service worker (arranque de Chrome, alarma, mensaje de la pestaña) se
+// vuelve a escuchar a Telegram enseguida, sin esperar a la próxima alarma de 30 s.
+replyTick().catch((e) => console.error(TAG, e));

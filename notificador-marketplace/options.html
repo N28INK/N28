@@ -71,7 +71,7 @@
 <label class="inline"><input type="checkbox" id="replyEnabled"> Activar respuestas desde Telegram</label>
 <label class="inline"><input type="checkbox" id="replySend" checked> Enviar el texto al chat automáticamente (si lo apagas, solo lo escribe en el chat y tú pulsas Enter en el PC)</label>
 <div class="hint">
-  Tú escribes a mano en Telegram (o adjuntas una foto, con o sin texto como pie); la extensión lo pone en el chat de Messenger. No hay botones ni respuestas automáticas.<br>
+  Tú escribes a mano en Telegram (o adjuntas una foto, con o sin texto como pie); la extensión lo pone en el chat de Messenger. No hay respuestas automáticas: todo lo escribes tú (el único botón, «🔄 Refrescar Marketplace», solo recarga Facebook).<br>
   <b>Cómo:</b> en Telegram mantén pulsado el aviso del chat → <b>Responder</b> → escribe tu texto y/o adjunta una foto → enviar. Te confirma con ✅.<br>
   Necesita una pestaña de Facebook abierta y solo funciona con Telegram. Solo obedece al chat de arriba (tu cuenta personal, o todo el grupo si pusiste un ID de grupo).<br>
   Si usas varios perfiles de Chrome, usa un bot distinto en cada uno: un bot solo puede ser leído por un programa a la vez.<br>
@@ -80,6 +80,24 @@
   y casi al instante, aunque tengas ese chat abierto en el PC.
 </div>
 <div class="hint" id="replyHint"></div>
+<label class="inline"><input type="checkbox" id="mirrorMine" checked> Copiar a Telegram también lo que yo escribo directamente en Facebook (hilo completo)</label>
+<div class="hint">
+  Lo que escribes tú en Facebook (en el PC o en el celular) llega a Telegram sin sonido, citando el mensaje anterior de ese chat, para que veas toda la conversación
+  en un solo hilo. Lo que mandas desde Telegram no se repite. Con <b>/hilo</b> (respondiendo al aviso de un chat) te mando la conversación entera con horas.
+  Si tu chat de Telegram es un grupo, todos los del grupo verán también lo que escribes.
+</div>
+<label>No avisar de mensajes que llegaron hace más de
+  <input type="number" id="maxAgeMin" min="5" max="1440" step="5" style="width:6em"> minutos
+  <div class="hint">Cada aviso lleva la hora a la que LLEGÓ el mensaje. Los más viejos que esto, o que ya estaban en la lista antes de que la mirara (por ejemplo al cambiar de carpeta), se ignoran. Recomendado: 120.</div>
+</label>
+<label>Botón «🔄 Refrescar Marketplace» (en Telegram): al recargar Facebook, volver a
+  <select id="refreshTo">
+    <option value="auto">la misma bandeja que estoy usando (recomendado)</option>
+    <option value="marketplace">la bandeja de Marketplace (facebook.com/marketplace/inbox)</option>
+    <option value="messages">Messenger (facebook.com/messages)</option>
+  </select>
+  <div class="hint">El botón aparece abajo en tu chat con el bot (si no lo ves, escribe /teclado). Recarga la pestaña de tus chats, comprueba que ve la lista y te dice a dónde llegó. Si hay un texto escrito a medias en el chat, no recarga (con «/refrescar forzar» sí).</div>
+</label>
 <h3>Ver un chat en Telegram: /pantalla (opcional)</h3>
 <div class="hint">
   En Telegram, responde al aviso de un chat con <b>/pantalla</b> y la extensión abre ese chat en Facebook y te manda una captura de la conversación.

@@ -1,4 +1,4 @@
-NOTIFICADOR MARKETPLACE v0.21 — LÉEME
+NOTIFICADOR MARKETPLACE v0.22 — LÉEME
 =====================================
 
 ¿Qué hace?
@@ -179,6 +179,69 @@ Si NO te llegan los avisos (pero sí la prueba)
 3. Para probar: pide a alguien que te escriba DESPUÉS de abrir la pestaña
    (los chats que ya estaban sin leer al abrirla no avisan), y no tengas
    ese chat abierto en pantalla.
+
+Cambios v0.22 (hora real de cada mensaje, sin viejos ni repetidos; botón 🔄; hilo completo)
+-----------------------------------------------------------------------------------------------
+1) HORA DE LLEGADA, SIN MENSAJES VIEJOS NI REPETIDOS
+- Cada aviso lleva la HORA a la que llegó el mensaje en el encabezado
+  ("🔔 Nuevo mensaje en Marketplace · 3:45 p. m."). Si el aviso sale tarde (la ventana
+  estaba dormida, por ejemplo) dice también cuánto: "· 3:36 p. m. (hace 9 min)".
+- Si en una misma lectura llegan avisos de varios chats, salen en el ORDEN EN QUE LLEGARON
+  (el más viejo primero), no en el orden de la lista de Facebook.
+- Mensajes viejos: un mensaje que llegó hace más de 120 minutos (se cambia en Configuración:
+  "No avisar de mensajes que llegaron hace más de…") o que YA ESTABA en la lista antes de la
+  última vez que la miré (por ejemplo al cambiar de carpeta o bajar por la lista) NO se
+  avisa. El registro dice el motivo. Una hora de reloj de la fila ("10:32", "3:05 p. m.")
+  ahora se interpreta como "hace N minutos", igual que "5 min" o "2 h".
+  Límite: la hora de la fila de Facebook tiene precisión de 1 minuto ("2 h" solo es exacto a la
+  hora). Si Facebook no redibuja la lista (ventana minimizada) y un mensaje aparece con más de
+  2 minutos de retraso, ese aviso DETALLADO se omite como "ya estaba en la lista"; en ese caso
+  el aviso general del título de la pestaña ("Nuevo mensaje en Facebook") es el que te avisa.
+- Al recargar Facebook (a mano o con 🔄): lo que llegó mientras la página cargaba SÍ se avisa
+  (si la lista se vio hace menos de 5 min), pero nunca lo anterior. Si Chrome estuvo cerrado
+  o la lista no se veía hace rato, todo se memoriza en silencio como siempre.
+- Repetidos: el mismo mensaje visto en dos listas a la vez (Messenger y la bandeja de
+  Marketplace abiertas en pestañas distintas) se avisa UNA sola vez. El aviso general del
+  título de la pestaña ("Nuevo mensaje en Facebook") ya no se repite cada minuto y medio
+  para el mismo cambio, ni cuando la lista acaba de avisar de esa misma persona.
+
+2) BOTÓN «🔄 Refrescar Marketplace» EN TELEGRAM
+- En tu chat con el bot aparece abajo un botón fijo «🔄 Refrescar Marketplace» (la primera
+  vez llega con un aviso; si no lo ves o lo ocultaste, escribe /teclado). También puedes
+  escribir /refrescar (o /recargar, /actualizar). Solo con Telegram y con las respuestas activadas.
+- Recarga la pestaña de Facebook donde vigilas tus chats, espera a que cargue y comprueba que
+  ve la lista. Te responde, por ejemplo: "✅ Facebook actualizado · 3:47 p. m. / 📍 Bandeja de
+  Marketplace / 💬 12 chats · 4 de Marketplace · 1 sin leer". Si Facebook pide iniciar sesión o
+  no carga la lista, te lo dice con esas palabras (no finge que funcionó).
+- A dónde vuelve (Configuración → "Botón 🔄 Refrescar"): "la misma bandeja que estoy usando"
+  (lo normal: si estabas dentro de un chat, regresa a la última bandeja que vio), "la bandeja de
+  Marketplace" (facebook.com/marketplace/inbox) o "Messenger" (facebook.com/messages). No hace
+  clic en carpetas de Facebook: solo carga esas páginas.
+- Si no hay ninguna pestaña con tus chats, abre una (fijada). No toca otras pestañas de Facebook.
+- Protección: si hay un texto escrito a medias en el chat, NO recarga (lo perderías) y te lo
+  dice; "/refrescar forzar" lo hace igual. Va en la misma cola que tus respuestas: nunca
+  recarga en medio de un mensaje que se está escribiendo. Pulsarlo dos veces seguidas no recarga dos veces.
+- Ahora el bot escucha a Telegram TODO el tiempo (antes, solo 10 min después de un aviso), así que
+  el botón, /pantalla, /hilo o una respuesta se atienden al instante, no hasta 30 s después.
+
+3) LO QUE ESCRIBES EN FACEBOOK TAMBIÉN LLEGA A TELEGRAM (HILO COMPLETO)
+- Lo que escribes tú directamente en Facebook (en el PC o en el celular) se copia a Telegram sin
+  sonido: "✍️ Tú, desde Facebook · 3:44 p. m. / Para Pedro • 2017 Ford f150 Lariat 4x4 / «Sí,
+  sigue disponible»". Lo que mandas DESDE Telegram no se repite como si fuera de Facebook.
+  Se apaga en Configuración ("Copiar a Telegram también lo que yo escribo…").
+- Hilo seguido: cada mensaje del bot (aviso del comprador, lo tuyo de Facebook, tu confirmación
+  ✅) cita al anterior de ese mismo chat, y puedes tocar «Responder» sobre cualquiera de ellos.
+- Cuando escribes tú en un chat, ese chat queda "en conversación" 30 min: las respuestas del
+  comprador te llegan completas y casi al instante aunque tengas el chat abierto en el PC.
+- /hilo (respondiendo al aviso de un chat): te manda la conversación entera con horas, en orden:
+  "👤 Pedro", "🧑 Tú (Facebook)", "📲 Tú (Telegram)".
+- Límites: el hilo es lo que la extensión llegó a VER desde que vigila (no lee el historial anterior
+  del chat). Facebook solo muestra el ÚLTIMO mensaje de cada chat en la lista: si tú (o el comprador)
+  mandan varios mensajes en menos de unos segundos, solo se ve el último. Si tu chat de Telegram es un
+  grupo, todos los del grupo verán también lo que escribes.
+- Probado con páginas simuladas de Facebook; el texto "Tú:" que Facebook pone delante de lo último que
+  escribiste, y la hora de cada fila, se reconocen en español e inglés. Si en tu Facebook real algo no
+  coincide, el registro (Configuración → Registro) dice qué se descartó y por qué.
 
 Cambios v0.21 (solo mensajes de las últimas 24 horas; la imagen llega como FOTO)
 ---------------------------------------------------------------------------------

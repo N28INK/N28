@@ -1,10 +1,11 @@
-/* Notificador Marketplace v0.21 — options.js */
+/* Notificador Marketplace v0.22 — options.js */
 'use strict';
 
 const DEFAULTS = {
   enabled: true, marketplaceOnly: false, pcNotify: true, channel: 'whatsapp',
   phone: '', apikey: '', tg_token: '', tg_chatid: '', accountName: '',
-  replyEnabled: false, replySend: true
+  replyEnabled: false, replySend: true,
+  mirrorMine: true, maxAgeMin: 120, refreshTo: 'auto'
 };
 const $ = (id) => document.getElementById(id);
 
@@ -57,6 +58,9 @@ async function load() {
   $('pcNotify').checked = cfg.pcNotify !== false;
   $('replyEnabled').checked = cfg.replyEnabled === true;
   $('replySend').checked = cfg.replySend !== false;
+  $('mirrorMine').checked = cfg.mirrorMine !== false;
+  $('maxAgeMin').value = cfg.maxAgeMin || 120;
+  $('refreshTo').value = ['auto', 'marketplace', 'messages'].includes(cfg.refreshTo) ? cfg.refreshTo : 'auto';
   showReplyHint();
   const radio = document.querySelector('input[name="channel"][value="' + (cfg.channel === 'telegram' ? 'telegram' : 'whatsapp') + '"]');
   if (radio) radio.checked = true;
@@ -88,9 +92,13 @@ async function save() {
     pcNotify: $('pcNotify').checked,
     replyEnabled: $('replyEnabled').checked,
     replySend: $('replySend').checked,
+    mirrorMine: $('mirrorMine').checked,
+    maxAgeMin: Math.max(5, Math.min(1440, parseInt($('maxAgeMin').value, 10) || 120)),
+    refreshTo: $('refreshTo').value,
     accountName: $('accountName').value.replace(/\s+/g, ' ').trim().slice(0, 80)
   };
   $('phone').value = cfg.phone;
+  $('maxAgeMin').value = cfg.maxAgeMin;
   const err = validate(cfg);
   if (err) {
     status('❌ ' + err, false);
@@ -99,7 +107,7 @@ async function save() {
   const before = (await chrome.storage.local.get('mn_settings')).mn_settings || {};
   await chrome.storage.local.set({ mn_settings: cfg });
   // Al activar las respuestas, lo que ya estaba pendiente en Telegram se descarta (no se ejecuta).
-  if (cfg.replyEnabled && !before.replyEnabled) await chrome.storage.local.remove(['mn_tg_init', 'mn_reply_until']);
+  if (cfg.replyEnabled && !before.replyEnabled) await chrome.storage.local.remove(['mn_tg_init', 'mn_reply_until', 'mn_kb', 'mn_cmds']);
   showReplyHint();
   showAcctHint();
   status('✅ Guardado.', true);
