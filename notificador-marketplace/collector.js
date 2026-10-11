@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.19 — collector.js
+/* Notificador Marketplace v0.20 — collector.js
  * Lee la lista de chats que se ve en la página y el nombre de la cuenta de
  * Facebook que tiene la sesión iniciada. Sabe leer dos páginas:
  *   - facebook.com/messages (Messenger): filas con enlaces /t/<id>;
@@ -12,7 +12,7 @@
  */
 (() => {
   'use strict';
-  if (globalThis.mnCollectVersion === 11) return;
+  if (globalThis.mnCollectVersion === 12) return;
 
   // Líneas que no son parte del mensaje: hora relativa, "Activo ahora", marcas de no leído…
   const MONTH = '(?:ene|enero|feb|febrero|mar|marzo|abr|abril|may|mayo|jun|junio|jul|julio|ago|agosto|sep|sept|septiembre|oct|octubre|nov|noviembre|dic|diciembre|jan|january|february|march|apr|april|june|july|aug|august|september|october|november|dec|december)\\.?';
@@ -288,6 +288,105 @@
     return rows;
   }
 
+  /* ---- Datos del comprador y de SU anuncio (solo se ven con el chat abierto) ----
+   * La lista de chats muestra solo el nombre de pila y el título del anuncio
+   * ("Pedro · 2017 Ford F150 Lariat"). Con el chat abierto, la página muestra más:
+   * el nombre completo y la tarjeta del anuncio con su precio. Se lee de la
+   * cabecera, del enlace al anuncio (/marketplace/item/<id>) y del texto de arriba.
+   * No se toca nada: solo se lee. Cada dato se acepta únicamente si cuadra con la
+   * fila de ESE mismo chat (el nombre completo tiene que empezar por el nombre de
+   * pila que muestra la lista), para no mezclar compradores.
+   */
+  const SEP_RE = /\s[·•]\s/;
+  const WORD = "\\p{L}[\\p{L}'’.\\-]*";
+  const NAME_RE = new RegExp('^' + WORD + '(?: ' + WORD + '){1,3}$', 'u');
+  const NAME_PARTICLE_RE = /^(?:de|del|la|las|los|y|van|von|da|di|le|mc|mac)$/i;
+  const NOT_NAME_RE = /^(?:activ[oa]|ahora|online|offline|hace|visto|enviado|marketplace|messenger|facebook|vendedor|vendedora|comprador|compradora|seller|buyer|item|art[ií]culo|anuncio|publicaci[oó]n|listing|chat|chats|mensaje|message|perfil|profile|ver|view|ayer|hoy)$/i;
+  const PRICE_ONLY_RE = /^(?:(?:US|USD|MX)\s?)?\$\s?\d[\d.,]*$|^(?:gratis|free)$/i;
+  const PRICE_ANY_RE = /(?:(?:US|USD|MX)\s?)?\$\s?\d[\d.,]*/i;
+  const GENERIC_LINK_RE = /^(?:ver|view|see|abrir|open|m[aá]s|more|mensaje|message|marketplace|enviar|send)\b/i;
+  const plain = (x) => String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const clean = (x) => String(x || '').replace(/[​-‏‪-‮⁦-⁩]/g, '').replace(/\s+/g, ' ').trim();
+
+  function readThreadInfo(tid, firstName, debug) {
+    const root = document.querySelector('[role="main"]') || document.body;
+    if (!root) return null;
+    const first = clean(firstName).split(SEP_RE)[0].trim();
+    const fw = plain(first).split(' ')[0];
+    const cands = []; // { t: texto, p: prioridad (0 = mejor fuente) }
+    const add = (t, p) => { t = clean(t); if (t && t.length <= 120) cands.push({ t: t, p: p }); };
+    const some = (sel, n) => Array.from(root.querySelectorAll(sel)).slice(0, n);
+    some('h1, h2, h3, [role="heading"]', 30).forEach((e) => add(e.innerText, 0));
+    some('a[href*="/marketplace/"], a[href*="profile.php"]', 30).forEach((e) => { add(e.innerText, 1); add(e.getAttribute('aria-label'), 1); });
+    some('[aria-label]', 150).forEach((e) => add(e.getAttribute('aria-label'), 2));
+    some('img[alt]', 40).forEach((e) => add(e.getAttribute('alt'), 2));
+    const top = (root.innerText || '').split('\n').slice(0, 45).map(clean).filter(Boolean);
+    top.forEach((l) => add(l, 3));
+
+    // 1) Nombre completo: empieza por el nombre de pila de la lista y tiene 2-4 palabras.
+    let full = '';
+    if (fw) {
+      let best = null;
+      for (const c of cands) {
+        for (const part of c.t.split(SEP_RE)) {
+          const t = part.trim();
+          if (!NAME_RE.test(t)) continue;
+          const words = t.split(' ');
+          if (words.length < 2 || plain(words[0]) !== fw) continue;
+          if (!words.slice(1).every((w) => !NOT_NAME_RE.test(w) && (/^\p{Lu}/u.test(w) || NAME_PARTICLE_RE.test(w)))) continue;
+          const score = c.p * 10 - Math.min(words.length, 4);
+          if (!best || score < best.score) best = { t: t, score: score };
+        }
+      }
+      if (best) full = best.t;
+    }
+
+    // 2) Anuncio: el enlace a la publicación; si no, "Nombre • Título" en la cabecera.
+    let listing = '';
+    let itemId = '';
+    const itemLink = root.querySelector('a[href*="/marketplace/item/"]');
+    if (itemLink) {
+      const m = /\/marketplace\/item\/(\d+)/.exec(itemLink.getAttribute('href') || '');
+      itemId = m ? m[1] : '';
+      for (const raw of [itemLink.getAttribute('aria-label'), itemLink.innerText]) {
+        for (const l of String(raw || '').split('\n')) {
+          const t = clean(l);
+          if (t.length >= 4 && !GENERIC_LINK_RE.test(t) && !PRICE_ONLY_RE.test(t)) { listing = t; break; }
+        }
+        if (listing) break;
+      }
+    }
+    if (!listing && fw) {
+      for (const c of cands) {
+        const parts = c.t.split(SEP_RE);
+        if (parts.length >= 2 && plain(parts[0]).split(' ')[0] === fw && parts[1].trim().length >= 3 && !PRICE_ONLY_RE.test(parts[1].trim())) {
+          listing = parts.slice(1).join(' • ').trim();
+          break;
+        }
+      }
+    }
+
+    // 3) Precio: dentro de la tarjeta del anuncio (el bloque que rodea al enlace);
+    // si no, una línea que sea SOLO un precio entre las primeras de arriba.
+    let price = '';
+    let el = itemLink;
+    for (let i = 0; el && i < 6 && !price; i++, el = el.parentElement) {
+      const txt = el.innerText || '';
+      if (txt.length > 500) break;
+      const m = PRICE_ANY_RE.exec(txt) || /(?:^|\n)\s*(gratis|free)\s*(?:\n|$)/i.exec(txt);
+      if (m) price = clean(m[0]);
+    }
+    if (!price && listing) {
+      const l = top.slice(0, 25).find((x) => PRICE_ONLY_RE.test(x));
+      if (l) price = l;
+    }
+
+    if (!full && !listing && !price) return debug ? { tid: tid, cand: cands.slice(0, 40).map((c) => c.p + ': ' + c.t) } : null;
+    const out = { tid: tid, full: full, listing: listing, price: price, itemId: itemId };
+    if (debug) out.cand = cands.slice(0, 40).map((c) => c.p + ': ' + c.t);
+    return out;
+  }
+
   globalThis.mnCollect = function mnCollect() {
     const path = location.pathname;
     const kind = MP_PATH_RE.test(path) ? 'marketplace' : (/\/messages\b/.test(path) ? 'messages' : 'otra');
@@ -310,7 +409,20 @@
     if (threads.length) globalThis.mnEverSeen = true;
     globalThis.mnLastCount = threads.length;
     const acct = globalThis.mnAccountInfo(false);
+    // Nombre completo, anuncio y precio del chat que está abierto (se relee cada ~6 s).
+    let info = null;
+    const openT = threadId(path);
+    if (openT) {
+      const c = globalThis.mnInfoCache;
+      if (c && c.tid === openT && Date.now() - c.at < 6000 && !globalThis.mnDebugInfo) info = c.val;
+      else {
+        const row = threads.find((t) => t.tid === openT);
+        try { info = readThreadInfo(openT, row ? row.name : '', !!globalThis.mnDebugInfo); } catch (e) { info = null; }
+        globalThis.mnInfoCache = { tid: openT, at: Date.now(), val: info };
+      }
+    }
     return {
+      info: info,
       threads: threads,
       warmup: warmup,
       focused: focused,
@@ -321,5 +433,5 @@
       accountSource: acct ? acct.source : ''
     };
   };
-  globalThis.mnCollectVersion = 11;
+  globalThis.mnCollectVersion = 12;
 })();

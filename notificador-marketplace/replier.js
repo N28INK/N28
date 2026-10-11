@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.19 — replier.js
+/* Notificador Marketplace v0.20 — replier.js
  * Escribe (y envía) en un chat de Messenger un texto —y/o pega una foto— que TÚ
  * mandaste a mano en Telegram. Solo lo inyecta el background, en pestañas de
  * Facebook, cuando llega tu respuesta desde tu propio Telegram. No envía nada
@@ -41,7 +41,7 @@
  */
 (() => {
   'use strict';
-  if (globalThis.mnReplyVersion === 6) return;
+  if (globalThis.mnReplyVersion === 7) return;
 
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const rand = (a, b) => a + Math.random() * (b - a);
@@ -371,6 +371,23 @@
 
   const snip = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
 
+  // Abre el chat /t/<tid> haciendo clic en su fila de la lista (como lo harías tú).
+  // Devuelve null si ya quedó abierto, o { ok:false, stage:'abrir', detail } si no.
+  async function openThread(tid, threadRe) {
+    if (threadRe.test(location.pathname)) return null;
+    const link = Array.from(document.querySelectorAll('a[href*="/t/' + tid + '"]'))
+      .find((a) => threadRe.test(a.getAttribute('href') || ''));
+    if (!link) return { ok: false, stage: 'abrir', detail: 'no encuentro ese chat en la lista de esta página' };
+    link.click();
+    const opened = await waitFor(() => threadRe.test(location.pathname), 8000);
+    if (!opened) return { ok: false, stage: 'abrir', detail: 'no se abrió el chat' };
+    // Tras alternar de chat, Facebook tarda un instante en reconstruir la
+    // conversación; si se escribe antes de que se asiente, el texto puede
+    // quedar en el chat anterior o perderse.
+    await settle(500);
+    return null;
+  }
+
   async function run(opts, t0) {
     const marks = [];
     let lapAt = Date.now();
@@ -392,18 +409,8 @@
     const threadRe = new RegExp('/t/' + tid + '(?:/|$|\\?)');
 
     // 1. el chat correcto
-    if (!threadRe.test(location.pathname)) {
-      const link = Array.from(document.querySelectorAll('a[href*="/t/' + tid + '"]'))
-        .find((a) => threadRe.test(a.getAttribute('href') || ''));
-      if (!link) return done({ ok: false, stage: 'abrir', detail: 'no encuentro ese chat en la lista de esta página' });
-      link.click();
-      const opened = await waitFor(() => threadRe.test(location.pathname), 8000);
-      if (!opened) return done({ ok: false, stage: 'abrir', detail: 'no se abrió el chat' });
-      // Tras alternar de chat, Facebook tarda un instante en reconstruir la
-      // conversación; si se escribe antes de que se asiente, el texto puede
-      // quedar en el chat anterior o perderse.
-      await settle(500);
-    }
+    const openErr = await openThread(tid, threadRe);
+    if (openErr) return done(openErr);
     lap('abrir');
 
     // 2. la caja de mensaje. Solo se bloquea por TEXTO (no por imágenes).
@@ -600,9 +607,43 @@
     }
   };
 
+  /* /pantalla: deja abierto ese chat (sin escribir nada) y dice qué zona de la
+   * página es la conversación, para que el background capture la pantalla y la
+   * recorte. Comparte el candado con las respuestas (una cosa a la vez). */
+  async function show(opts) {
+    const tid = String(opts && opts.tid || '').replace(/\D/g, '');
+    if (!tid) return { ok: false, stage: 'datos', detail: 'falta el chat' };
+    const threadRe = new RegExp('/t/' + tid + '(?:/|$|\\?)');
+    const openErr = await openThread(tid, threadRe);
+    if (openErr) return openErr;
+    const composer = await waitFor(() => (threadRe.test(location.pathname) ? findComposer() : null), 10000);
+    if (!composer) return { ok: false, stage: 'caja', detail: 'el chat no terminó de cargar' };
+    await settle(900); // que se pinten los mensajes
+    if (!threadRe.test(location.pathname)) return { ok: false, stage: 'abrir', detail: 'el chat abierto cambió; no capturo' };
+    const main = document.querySelector('[role="main"]');
+    const r = main ? main.getBoundingClientRect() : null;
+    const rect = r && r.width >= 250 && r.height >= 250 ? { x: r.left, y: r.top, w: r.width, h: r.height } : null;
+    return { ok: true, vw: window.innerWidth, vh: window.innerHeight, rect: rect };
+  }
+
+  globalThis.mnShow = async function mnShow(opts) {
+    const t0 = Date.now();
+    if (running && t0 - running.at < RUNNING_MAX_MS) {
+      return { ok: false, stage: 'ocupado', detail: 'sigo terminando otra respuesta en esta pestaña; pídelo de nuevo en unos segundos' };
+    }
+    running = { at: t0 };
+    try {
+      return await show(opts);
+    } catch (e) {
+      return { ok: false, stage: 'error', detail: 'error inesperado (' + shortErr(e) + ')' };
+    } finally {
+      running = null;
+    }
+  };
+
   function shortErr(e) {
     return String(e && e.message ? e.message : e).slice(0, 80);
   }
 
-  globalThis.mnReplyVersion = 6;
+  globalThis.mnReplyVersion = 7;
 })();

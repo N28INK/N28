@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.19 — options.js */
+/* Notificador Marketplace v0.20 — options.js */
 'use strict';
 
 const DEFAULTS = {
@@ -106,6 +106,27 @@ async function save() {
   return true;
 }
 
+// Permiso opcional para capturar la pestaña de Facebook con /pantalla. Chrome solo
+// deja pedirlo con un clic del usuario (por eso es un botón).
+const SHOT_PERM = { origins: ['<all_urls>'] };
+async function showShotHint() {
+  let ok = false;
+  try { ok = await chrome.permissions.contains(SHOT_PERM); } catch (e) { ok = false; }
+  $('shotHint').textContent = ok
+    ? '✅ Permiso dado: /pantalla funciona (responde a un aviso con /pantalla).'
+    : '⚠️ Sin permiso: /pantalla no funcionará hasta que lo des.';
+  $('grantShot').hidden = ok;
+  $('revokeShot').hidden = !ok;
+}
+$('grantShot').addEventListener('click', async () => {
+  try { await chrome.permissions.request(SHOT_PERM); } catch (e) { $('shotHint').textContent = '❌ No se pudo pedir el permiso: ' + e; return; }
+  showShotHint();
+});
+$('revokeShot').addEventListener('click', async () => {
+  try { await chrome.permissions.remove(SHOT_PERM); } catch (e) { /* nada */ }
+  showShotHint();
+});
+
 $('save').addEventListener('click', save);
 
 $('test').addEventListener('click', async () => {
@@ -174,3 +195,4 @@ document.querySelectorAll('input[name="channel"]').forEach((r) => r.addEventList
 
 load();
 showLog();
+showShotHint();

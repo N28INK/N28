@@ -1,4 +1,4 @@
-NOTIFICADOR MARKETPLACE v0.19 — LÉEME
+NOTIFICADOR MARKETPLACE v0.20 — LÉEME
 =====================================
 
 ¿Qué hace?
@@ -179,6 +179,40 @@ Si NO te llegan los avisos (pero sí la prueba)
 3. Para probar: pide a alguien que te escriba DESPUÉS de abrir la pestaña
    (los chats que ya estaban sin leer al abrirla no avisan), y no tengas
    ese chat abierto en pantalla.
+
+Cambios v0.20 (nombre completo, anuncio y precio en el aviso; /pantalla)
+-------------------------------------------------------------------------
+- El aviso de un mensaje de Marketplace ahora sale así:
+      Escribió
+      Pedro Gómez • 2017 Ford f150 Lariat 4x4
+      $4000
+
+      "el mensaje del comprador"
+  Si no se conoce el apellido o el precio, esa parte simplemente no sale (nunca se inventa).
+- Cómo lo sabe: la lista de Facebook solo muestra el nombre de pila y el título del anuncio.
+  Con el chat ABIERTO la página muestra más, y la extensión lo lee (solo leer, no toca
+  nada) y lo recuerda por chat: nombre completo, anuncio y precio. El precio también se
+  recuerda por anuncio, así que otro comprador por el mismo anuncio sale con su precio
+  aunque nunca hayas abierto su chat. Por eso el PRIMER mensaje de un comprador nuevo
+  puede salir con solo el nombre de pila y sin precio (si ese anuncio es nuevo para la
+  extensión); en cuanto abres ese chat una vez (o le contestas desde Telegram, que lo abre),
+  queda aprendido. El registro lo dice: "Todavía no sé el apellido de «Pedro»…" y
+  "Datos del chat Pedro Gómez: … precio $4000".
+- OJO: esto está probado con páginas simuladas, no con tu Facebook real. Si en tu cuenta no
+  aparece el apellido o el precio, abre Opciones → Diagnóstico → «Ver qué detecta» con ese chat
+  abierto y copia el resultado: ahora incluye los textos que la extensión ve en la cabecera
+  del chat, y con eso se ajusta.
+- /pantalla: responde a un aviso con /pantalla (o /captura) y la extensión abre ESE chat,
+  captura solo la conversación (sin la lista de los otros chats) y te manda la imagen por
+  Telegram. Si hay otra respuesta en curso, espera su turno. Abrir un chat lo marca como leído
+  en Facebook (el comprador ve "Visto").
+- Permiso: Chrome no deja capturar una pestaña con el permiso normal de Facebook. Por eso hay
+  un botón en Opciones, «Permitir capturas (/pantalla)»: Chrome pide permiso con un aviso
+  (dice «acceder a todos los sitios»; la extensión solo captura la pestaña de Facebook cuando
+  tú lo pides). Sin ese permiso, /pantalla te explica dónde darlo. Si cargas la extensión desde
+  una carpeta distinta (otra versión), Chrome la trata como otra extensión y hay que darlo de nuevo.
+- Privacidad: las capturas muestran nombres y mensajes de tus clientes y quedan guardadas en los
+  servidores de Telegram. Si tu chat de Telegram es un grupo, todos los del grupo las ven.
 
 Cambios v0.19 (las respuestas se escriben letra por letra, entre 10 y 20 segundos)
 ------------------------------------------------------------------------------------

@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.19 — service worker (background.js)
+/* Notificador Marketplace v0.20 — service worker (background.js)
  * Recibe la lista de chats (del content script, de su propio despertador de
  * 30 segundos o del cambio de título de la pestaña) y, cuando hay un mensaje
  * nuevo sin leer, te avisa al teléfono por WhatsApp (CallMeBot) o Telegram,
@@ -23,7 +23,7 @@ const INBOX_URL = 'https://www.facebook.com/messages/';
 const COOLDOWN_MS = 60 * 1000;               // máx. 1 aviso por chat cada minuto (salvo chat "activo", ver ACTIVE_COOLDOWN_MS)
 const ACTIVE_COOLDOWN_MS = 3 * 1000;         // chats con los que contestaste hace poco: casi sin espera entre avisos
 const ACTIVE_CHAT_MS = 30 * 60 * 1000;       // minutos que un chat queda "activo" tras contestarlo desde Telegram
-const COLLECTOR_VERSION = 11;                // versión de collector.js que espera este background
+const COLLECTOR_VERSION = 12;                // versión de collector.js que espera este background
 const MP_INBOX_URL = 'https://www.facebook.com/marketplace/inbox/';
 const LOG_MAX = 200;                         // eventos que guarda el registro
 const LOG_COLLAPSE_MS = 10 * 60 * 1000;      // una misma línea repetida se cuenta (×N) en vez de inundar el registro
@@ -356,6 +356,14 @@ async function diagnose() {
       escuchandoHasta: (await chrome.storage.local.get('mn_reply_until')).mn_reply_until || 0,
       chatsRecordados: Object.keys((await chrome.storage.local.get('mn_replies')).mn_replies || {}).length
     },
+    memoriaDeCompradores: await (async () => {
+      const m = await chrome.storage.local.get(['mn_info', 'mn_prices']);
+      return {
+        chats: Object.keys(m.mn_info || {}).length,
+        anunciosConPrecio: Object.keys(m.mn_prices || {}).length,
+        ultimos: Object.values(m.mn_info || {}).slice(-3).map((x) => ({ nombreCompleto: x.full, anuncio: x.listing, precio: x.price }))
+      };
+    })(),
     registro: ((await chrome.storage.local.get('mn_log')).mn_log || []).slice(-30).map((e) =>
       new Date(e.t).toLocaleTimeString('es') + ' [' + e.k + '] ' + e.m),
     cuenta: {
@@ -386,6 +394,8 @@ async function diagnose() {
             if (i !== -1) { trozo = t.slice(i, i + 220).replace(/\d{6,}/g, '#'); break; }
           }
           if (typeof globalThis.mnAccountInfo === 'function') globalThis.mnAccountInfo(true);
+          globalThis.mnDebugInfo = true; // que el lector devuelva también los textos que vio en la cabecera
+          globalThis.mnInfoCache = null;
           const roles = {};
           ['row', 'listitem', 'option', 'grid', 'list', 'gridcell', 'link'].forEach((r) => {
             roles[r] = document.querySelectorAll('[role="' + r + '"]').length;
@@ -399,7 +409,7 @@ async function diagnose() {
             roles: roles, textoMuestra: textoMuestra,
             permisoNotificacionesDeFacebook: typeof Notification !== 'undefined' ? Notification.permission : 'n/a',
             cuentaDebug: { scriptsJson: jsons.length, cookieC_user: /(?:^|;\s*)c_user=\d+/.test(document.cookie || ''), trozoCurrentUserInitialData: trozo },
-            scan: typeof globalThis.mnCollect === 'function' ? globalThis.mnCollect() : 'sin lector'
+            scan: (() => { const x = typeof globalThis.mnCollect === 'function' ? globalThis.mnCollect() : 'sin lector'; globalThis.mnDebugInfo = false; globalThis.mnInfoCache = null; return x; })()
           };
         }
       }), SCRIPT_TIMEOUT_MS);
@@ -494,12 +504,76 @@ async function refreshAccountFromTabs() {
   if (hit) await rememberAccount(hit.name, hit.source);
 }
 
+/* ---------------- comprador y anuncio ----------------
+ * La lista de Facebook solo muestra el nombre de pila y el título del anuncio.
+ * Con el chat abierto, collector.js lee además el nombre completo y el precio
+ * (scan.info). Aquí se recuerdan por chat (y el precio, también por título de
+ * anuncio) para que los avisos de ese comprador —y de otros que escriban por el
+ * mismo anuncio— salgan con "Nombre Apellido • Anuncio" y su precio.
+ */
+const plainKey = (x) => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const mdSafe = (x) => String(x || '').replace(/[*_`\[\]]/g, ' ').replace(/\s+/g, ' ').trim();
+const INFO_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+
+async function learnInfo(info) {
+  if (!info || !/^\d+$/.test(String(info.tid))) return;
+  const full = cleanAccountName(info.full), listing = cleanAccountName(info.listing), price = cleanAccountName(info.price);
+  if (!full && !listing && !price) return;
+  const d = await chrome.storage.local.get(['mn_info', 'mn_prices']);
+  const map = d.mn_info || {};
+  const prices = d.mn_prices || {};
+  const prev = map[info.tid] || {};
+  const next = { full: full || prev.full || '', listing: listing || prev.listing || '', price: price || prev.price || '', at: Date.now() };
+  const changed = prev.full !== next.full || prev.listing !== next.listing || prev.price !== next.price;
+  if (!changed && next.at - (prev.at || 0) < 6 * 60 * 60 * 1000) return; // sin cambios: no escribir en cada vuelta
+  map[info.tid] = next;
+  if (next.listing && next.price) prices[plainKey(next.listing)] = { price: next.price, at: next.at };
+  const keepNewest = (obj, max) => {
+    const keys = Object.keys(obj).filter((k) => next.at - (obj[k].at || 0) < INFO_TTL_MS).sort((a, b) => obj[b].at - obj[a].at).slice(0, max);
+    const out = {};
+    keys.forEach((k) => { out[k] = obj[k]; });
+    return out;
+  };
+  await chrome.storage.local.set({ mn_info: keepNewest(map, 400), mn_prices: keepNewest(prices, 200) });
+  if (changed) {
+    await logEvent('scan', 'Datos del chat ' + (next.full || '«' + shortText(listing, 20) + '»') + ': ' +
+      (next.full ? 'nombre completo «' + shortText(next.full, 40) + '»' : 'sin apellido visible') +
+      (next.listing ? ', anuncio «' + shortText(next.listing, 40) + '»' : '') + (next.price ? ', precio ' + next.price : '') + '.');
+  }
+}
+
+// Completa th con el comprador (nombre completo si se conoce), el anuncio y el precio.
+function enrichThread(th, infoMap, prices) {
+  const parts = String(th.name || '').split(/\s[·•]\s/);
+  const rowBuyer = parts[0].trim();
+  const rowListing = parts.slice(1).join(' • ').trim();
+  const info = infoMap[th.tid] || null;
+  let buyer = rowBuyer;
+  if (info && info.full) {
+    const a = plainKey(info.full).split(' ')[0];
+    const b = plainKey(rowBuyer).split(' ')[0];
+    if (a && a === b && plainKey(info.full).length >= plainKey(rowBuyer).length) buyer = info.full; // es el mismo comprador
+  }
+  let listing = rowListing;
+  if (info && info.listing && (!rowListing || plainKey(info.listing).startsWith(plainKey(rowListing).slice(0, 12)))) listing = info.listing;
+  const known = listing ? prices[plainKey(listing)] : null;
+  th.buyer = buyer;
+  th.listing = th.isMarketplace ? listing : '';
+  th.price = th.isMarketplace ? ((info && info.price) || (known && known.price) || '') : '';
+  th.name = buyer + (th.listing ? ' · ' + th.listing : '');
+}
+
 // Núcleo: compara los chats con lo ya visto y avisa si hay algo nuevo.
 async function processScan(scan) {
   const s = await getSettings();
   if (scan.account) await rememberAccount(scan.account, scan.accountSource);
   const threads = Array.isArray(scan.threads) ? scan.threads : [];
+  if (scan.info) await learnInfo(scan.info);
   if (!s.enabled || !threads.length) return;
+  {
+    const mem = await chrome.storage.local.get(['mn_info', 'mn_prices']);
+    for (const th of threads) if (th && th.tid) enrichThread(th, mem.mn_info || {}, mem.mn_prices || {});
+  }
 
   const data = await chrome.storage.local.get(['mn_seen', 'mn_active']);
   const seen = data.mn_seen || {};
@@ -617,11 +691,20 @@ async function setStatus(patch) {
 async function alertNewMessage(th, s, isActive) {
   const where = th.isMarketplace ? 'Marketplace' : 'Messenger';
   const link = th.link || (INBOX_URL + 't/' + th.tid + '/');
+  const buyer = mdSafe(th.buyer || th.name);
+  // Marketplace: "Escribió / Nombre Apellido • Anuncio / $precio". Si no se conoce el
+  // anuncio o el precio, esa línea simplemente no sale (nunca se inventa).
+  const ad = th.isMarketplace && th.listing ? mdSafe(th.listing) : '';
+  const price = th.isMarketplace && th.price ? mdSafe(th.price) : '';
+  const whoBlock = buyer + (ad ? ' • ' + ad : '') + (price ? '\n' + price : '');
   const text =
-    (isActive ? '💬 *Respuesta de ' + th.name + '*\n' : '🔔 *Nuevo mensaje en ' + where + '*\n') +
+    (isActive ? '💬 *Respuesta de ' + buyer + '*\n' : '🔔 *Nuevo mensaje en ' + where + '*\n') +
     accountLine(await accountName(s)) + '\n' +
-    (isActive ? '' : 'De: ' + th.name + '\n') +
+    (isActive ? (ad ? ad + (price ? ' • ' + price : '') + '\n' : '') : 'Escribió\n' + whoBlock + '\n\n') +
     '"' + th.text + '"';
+  if (th.isMarketplace && !/\s/.test(buyer)) {
+    await logEvent('scan', 'Todavía no sé el apellido de «' + shortText(buyer, 25) + '» (la lista de Facebook solo muestra el nombre de pila): se aprende al abrir ese chat una vez.');
+  }
   const canReply = replyActive(s) && th.src !== 'texto' && /^\d+$/.test(String(th.tid));
   // Si puedes contestar con «Responder» (Telegram), el enlace al chat ya no
   // hace falta: se quita para que el aviso no se vea tan largo. Si no puedes
@@ -635,7 +718,7 @@ async function alertNewMessage(th, s, isActive) {
   // para que si Windows/Chrome la retrasan o la bloquean no se retrase el aviso.
   if (s.pcNotify) {
     const id = th.src === 'texto' ? 'mn-open-inbox-mp-' : 'mn-thread-' + th.tid + '-';
-    notifyPC(id + Date.now(), 'Nuevo mensaje de ' + th.name, th.text);
+    notifyPC(id + Date.now(), 'Nuevo mensaje de ' + (th.buyer || th.name), (ad ? ad + (price ? ' • ' + price : '') + ': ' : '') + th.text);
   }
   const via = s.channel === 'telegram' ? 'Telegram' : 'WhatsApp';
   const r = await sendNotification(full, s);
@@ -915,7 +998,8 @@ const REPLY_HELP =
   'Cómo contestar un chat desde aquí:\n' +
   '1. Mantén pulsado el aviso del chat y elige «Responder».\n' +
   '2. Escribe tu texto, o adjunta una foto (con o sin texto como pie), y envíalo.\n' +
-  'La extensión lo escribe (o pega la foto) en ese chat de Facebook y te confirma.';
+  'La extensión lo escribe (o pega la foto) en ese chat de Facebook y te confirma.\n' +
+  'Para ver cómo está un chat: responde a su aviso con /pantalla y te mando una captura de ese chat.';
 
 // Nombre para el registro y las confirmaciones cuando el chat configurado es un
 // grupo (varias personas pueden contestar): "Juan", "@juanperez" o "alguien".
@@ -989,6 +1073,137 @@ async function noteSent(tid, sig) {
   await chrome.storage.local.set({ [RECENT_SENDS_KEY]: map });
 }
 
+/* ---- /pantalla: una captura de ESE chat, bajo demanda ----
+ * Responde a un aviso con /pantalla (o /captura): la extensión abre ese chat en
+ * Facebook, captura lo que se ve de la conversación y te manda la imagen. Abrir
+ * un chat lo marca como leído en Facebook (el comprador ve "Visto").
+ */
+const SCREEN_RE = /^\/(?:pantalla|captura|screen|screenshot)(?:@\w+)?(?:\s|$)/i;
+
+async function tgSendPhoto(s, blob, caption, replyTo) {
+  const fd = new FormData();
+  fd.append('chat_id', String(s.tg_chatid).trim());
+  fd.append('photo', blob, 'chat.jpg');
+  fd.append('caption', String(caption || '').slice(0, 900));
+  if (replyTo) { fd.append('reply_to_message_id', String(replyTo)); fd.append('allow_sending_without_reply', 'true'); }
+  try {
+    const res = await fetch('https://api.telegram.org/bot' + String(s.tg_token || '').trim() + '/sendPhoto', { method: 'POST', body: fd, signal: AbortSignal.timeout(30000) });
+    let json = null;
+    try { json = JSON.parse(await res.text()); } catch (e) { /* no era JSON */ }
+    return { status: res.status, json: json };
+  } catch (e) {
+    return { status: 0, json: null, error: String(e && e.message ? e.message : e) };
+  }
+}
+
+// data:image/jpeg;base64,… → Blob (sin pasar por fetch).
+function dataUrlToBlob(dataUrl) {
+  const m = /^data:([^;,]+);base64,(.*)$/s.exec(dataUrl);
+  if (!m) throw new Error('captura vacía');
+  const bin = atob(m[2]);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: m[1] });
+}
+
+// Recorta la captura a la zona de la conversación (sin la lista de otros chats).
+async function cropShot(dataUrl, shown) {
+  const whole = dataUrlToBlob(dataUrl);
+  try {
+    const bmp = await createImageBitmap(whole);
+    const r = shown && shown.rect;
+    let sx = 0, sy = 0, sw = bmp.width, sh = bmp.height;
+    if (r && shown.vw) {
+      const k = bmp.width / shown.vw; // píxeles de la captura por píxel de la página
+      sx = Math.max(0, Math.round(r.x * k));
+      sy = Math.max(0, Math.round(r.y * k));
+      sw = Math.min(bmp.width - sx, Math.round(r.w * k));
+      sh = Math.min(bmp.height - sy, Math.round(r.h * k));
+    }
+    const cv = new OffscreenCanvas(sw, sh);
+    cv.getContext('2d').drawImage(bmp, sx, sy, sw, sh, 0, 0, sw, sh);
+    return await cv.convertToBlob({ type: 'image/jpeg', quality: 0.85 });
+  } catch (e) {
+    return whole; // sin recorte, pero se manda
+  }
+}
+
+async function captureChat(target) {
+  let tabs = [];
+  try { tabs = await chrome.tabs.query({ url: FB_URLS }); } catch (e) { tabs = []; }
+  tabs = tabs.filter((t) => !t.discarded);
+  if (!tabs.length) return { ok: false, detail: 'no hay ninguna pestaña de Facebook abierta. Abre facebook.com/messages y vuelve a pedirlo.' };
+  tabs.sort((a, b) => (/\/messages\b/.test(b.url || '') ? 1 : 0) - (/\/messages\b/.test(a.url || '') ? 1 : 0));
+  const tab = tabs[0];
+  const wake = await wakeTab(tab);
+  try {
+    try {
+      await withTimeout(chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['replier.js'] }), SCRIPT_TIMEOUT_MS);
+    } catch (e) {
+      return { ok: false, detail: 'no pude hablar con la pestaña de Facebook (' + shortText(e && e.message ? e.message : e, 60) + ').' };
+    }
+    const show = async () => {
+      const res = await withTimeout(chrome.scripting.executeScript({ target: { tabId: tab.id }, args: [{ tid: target.tid }], func: (o) => globalThis.mnShow(o) }), 45000);
+      return (res && res[0] && res[0].result) || { ok: false, detail: 'la pestaña de Facebook no respondió.' };
+    };
+    let shown = await show();
+    if (!shown.ok && shown.stage === 'abrir') {
+      const loaded = waitTabComplete(tab.id, 25000);
+      try { await chrome.tabs.update(tab.id, { url: 'https://www.facebook.com/messages/t/' + target.tid + '/' }); } catch (e) { /* ya se verá abajo */ }
+      await loaded;
+      await new Promise((r) => setTimeout(r, 2500));
+      shown = await show();
+    }
+    if (!shown.ok) return { ok: false, detail: shown.detail || 'no pude abrir ese chat.' };
+    await new Promise((r) => setTimeout(r, 400)); // que Chrome termine de pintar
+    let dataUrl;
+    try {
+      dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'jpeg', quality: 90 });
+    } catch (e) {
+      return { ok: false, detail: 'Chrome no me dejó capturar la pantalla (' + shortText(e && e.message ? e.message : e, 80) + ').' };
+    }
+    return { ok: true, blob: await cropShot(dataUrl, shown) };
+  } catch (e) {
+    return { ok: false, detail: 'falló la captura (' + shortText(e && e.message ? e.message : e, 80) + ').' };
+  } finally {
+    await restoreTab(wake);
+  }
+}
+
+async function handleScreenRequest(msg, s, who0) {
+  let allowed = false;
+  try { allowed = await chrome.permissions.contains({ origins: ['<all_urls>'] }); } catch (e) { allowed = false; }
+  if (!allowed) {
+    await tgSay(s, '⚠️ /pantalla necesita un permiso de Chrome que todavía no diste. En el PC: abre las Opciones de la extensión → «Permitir capturas (/pantalla)» y acepta el aviso de Chrome.', msg.message_id);
+    await logEvent('reply', 'Pidieron /pantalla pero falta el permiso de captura (Opciones → Permitir capturas).');
+    return;
+  }
+  const res = await resolveTarget(msg);
+  if (res.error) { await tgSay(s, '⚠️ ' + res.error, msg.message_id); return; }
+  const rate = await replyAllowed();
+  if (!rate.ok) { await tgSay(s, '⏳ ' + rate.why, msg.message_id); return; }
+  const target = res.target;
+  const who = '«' + shortText(target.name, 40) + '»';
+  await logEvent('reply', who0 + 'pide una captura del chat de ' + who + '.');
+  const r = await queueReply(async (wasBusy) => {
+    if (wasBusy) await tgSay(s, '⏳ En cola: te mando la captura de ' + who + ' en cuanto termine la respuesta anterior…', msg.message_id);
+    return captureChat(target);
+  });
+  if (r.ok) {
+    const hora = new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+    const sent = await tgSendPhoto(s, r.blob, '📷 ' + who + ' — ' + hora, msg.message_id);
+    if (sent.json && sent.json.ok) await logEvent('reply', 'Captura enviada del chat de ' + who + '.');
+    else {
+      await tgSay(s, who0 + '❌ Tomé la captura pero Telegram no la aceptó (' + shortText((sent.json && sent.json.description) || sent.error || ('HTTP ' + sent.status), 80) + ').', msg.message_id);
+      await logEvent('reply', 'NO se pudo mandar la captura de ' + who + ': ' + shortText((sent.json && sent.json.description) || sent.error || sent.status, 100));
+    }
+  } else {
+    await tgSay(s, who0 + '❌ No pude capturar el chat de ' + who + ': ' + r.detail, msg.message_id);
+    await logEvent('reply', 'NO se pudo capturar ' + who + ': ' + shortText(r.detail, 100));
+  }
+  await startReplyWindow();
+}
+
 async function handleTelegramMessage(msg, s) {
   const chatId = String(msg.chat && msg.chat.id);
   const fromId = String(msg.from && msg.from.id);
@@ -1016,7 +1231,7 @@ async function handleTelegramMessage(msg, s) {
   if (!text && !photos) { await tgSay(s, 'Solo puedo enviar texto o una foto. Escribe tu respuesta, o adjunta una imagen (puedes ponerle texto como pie).', msg.message_id); return; }
   if (!photos) {
     if (/^\/(?:start|ayuda|help)\b/i.test(text)) { await tgSay(s, REPLY_HELP, msg.message_id); return; }
-    if (text.startsWith('/')) { await tgSay(s, 'No conozco ese comando.\n\n' + REPLY_HELP, msg.message_id); return; }
+    if (text.startsWith('/') && !SCREEN_RE.test(text)) { await tgSay(s, 'No conozco ese comando.\n\n' + REPLY_HELP, msg.message_id); return; }
   }
   if (Date.now() / 1000 - (msg.date || 0) > REPLY_MAX_AGE_S) {
     await logEvent('reply', 'Ignoré un mensaje de Telegram (' + who0 + 'más de 30 minutos de antigüedad).');
@@ -1024,6 +1239,7 @@ async function handleTelegramMessage(msg, s) {
   }
   if (text.length > REPLY_MAX_LEN) { await tgSay(s, 'Ese ' + (photos ? 'pie de foto' : 'mensaje') + ' es muy largo (máximo ' + REPLY_MAX_LEN + ' caracteres).', msg.message_id); return; }
 
+  if (!photos && SCREEN_RE.test(text)) { await handleScreenRequest(msg, s, who0); return; }
   const res = await resolveTarget(msg);
   if (res.error) { await tgSay(s, '⚠️ ' + res.error, msg.message_id); return; }
   const sig = replySig(text, photos);
