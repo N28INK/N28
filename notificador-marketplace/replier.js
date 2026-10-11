@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.20 — replier.js
+/* Notificador Marketplace v0.21 — replier.js
  * Escribe (y envía) en un chat de Messenger un texto —y/o pega una foto— que TÚ
  * mandaste a mano en Telegram. Solo lo inyecta el background, en pestañas de
  * Facebook, cuando llega tu respuesta desde tu propio Telegram. No envía nada
@@ -41,7 +41,7 @@
  */
 (() => {
   'use strict';
-  if (globalThis.mnReplyVersion === 7) return;
+  if (globalThis.mnReplyVersion === 8) return;
 
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const rand = (a, b) => a + Math.random() * (b - a);
@@ -285,8 +285,18 @@
     c.focus();
     const resp = await fetch(dataUrl);
     const blob = await resp.blob();
-    const ext = /png/i.test(mime) ? 'png' : (/gif/i.test(mime) ? 'gif' : (/webp/i.test(mime) ? 'webp' : 'jpg'));
-    const file = new File([blob], 'foto.' + ext, { type: mime || blob.type || 'image/jpeg' });
+    // El tipo y el nombre tienen que ser de IMAGEN: con "application/octet-stream"
+    // (o sin extensión) Facebook lo toma por un archivo cualquiera, descargable, y
+    // no por una foto. Se decide por los primeros bytes del archivo.
+    const b = new Uint8Array(await blob.slice(0, 12).arrayBuffer());
+    let type = '';
+    if (b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) type = 'image/jpeg';
+    else if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47) type = 'image/png';
+    else if (b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x38) type = 'image/gif';
+    else if (b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) type = 'image/webp';
+    if (!type) type = /^image\//.test(mime || '') ? mime : 'image/jpeg';
+    const ext = /png/i.test(type) ? 'png' : (/gif/i.test(type) ? 'gif' : (/webp/i.test(type) ? 'webp' : 'jpg'));
+    const file = new File([blob], 'foto.' + ext, { type: type });
     const dt = new DataTransfer();
     dt.items.add(file);
     c.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
@@ -645,5 +655,5 @@
     return String(e && e.message ? e.message : e).slice(0, 80);
   }
 
-  globalThis.mnReplyVersion = 7;
+  globalThis.mnReplyVersion = 8;
 })();

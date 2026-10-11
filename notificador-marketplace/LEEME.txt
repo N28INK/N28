@@ -1,4 +1,4 @@
-NOTIFICADOR MARKETPLACE v0.20 — LÉEME
+NOTIFICADOR MARKETPLACE v0.21 — LÉEME
 =====================================
 
 ¿Qué hace?
@@ -179,6 +179,26 @@ Si NO te llegan los avisos (pero sí la prueba)
 3. Para probar: pide a alguien que te escriba DESPUÉS de abrir la pestaña
    (los chats que ya estaban sin leer al abrirla no avisan), y no tengas
    ese chat abierto en pantalla.
+
+Cambios v0.21 (solo mensajes de las últimas 24 horas; la imagen llega como FOTO)
+---------------------------------------------------------------------------------
+- Mensajes viejos: ya no se avisa de un chat cuyo último mensaje tiene MÁS DE 1 DÍA.
+  Se decide por la hora que muestra la fila de Facebook: "ahora", "5 min", "2 h" o una
+  hora del día ("10:32") son de hoy y avisan; "25 h", "ayer", un día de la semana
+  ("lun"), una fecha ("3 oct") o "2 sem" son viejos y se ignoran (el registro dice
+  "su último mensaje tiene más de 1 día"). Antes, un chat viejo que aparecía en la lista
+  (p. ej. al bajar por ella) podía avisarse como si fuera nuevo. Si ese chat viejo recibe
+  un mensaje nuevo, la fila vuelve a decir "ahora" y entonces sí avisa. Si la hora de la
+  fila no se puede interpretar, se avisa como siempre (no se descarta por duda).
+- Imagen como "archivo descargable": al pegar la foto en la caja de Messenger se le ponía
+  el tipo que decía Telegram; si Telegram la servía como "application/octet-stream",
+  Facebook la tomaba por un archivo cualquiera. Ahora el tipo (JPG, PNG, GIF o WEBP) y el
+  nombre (foto.jpg, foto.png…) se deciden por los bytes reales del archivo, así que se
+  pega como imagen (con vista previa en la caja) y TÚ la envías con el texto como siempre.
+  Una imagen mandada "como archivo" desde Telegram (documento image/*) también se acepta
+  como foto; un archivo que no es imagen (pdf, etc.) se rechaza con un mensaje claro.
+- Limitación: esto está probado con páginas simuladas. Si en tu Facebook real todavía sale
+  como archivo, cuéntamelo con una captura de cómo queda en la caja de Messenger antes de enviar.
 
 Cambios v0.20 (nombre completo, anuncio y precio en el aviso; /pantalla)
 -------------------------------------------------------------------------

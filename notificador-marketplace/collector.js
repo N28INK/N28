@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.20 — collector.js
+/* Notificador Marketplace v0.21 — collector.js
  * Lee la lista de chats que se ve en la página y el nombre de la cuenta de
  * Facebook que tiene la sesión iniciada. Sabe leer dos páginas:
  *   - facebook.com/messages (Messenger): filas con enlaces /t/<id>;
@@ -12,7 +12,7 @@
  */
 (() => {
   'use strict';
-  if (globalThis.mnCollectVersion === 12) return;
+  if (globalThis.mnCollectVersion === 13) return;
 
   // Líneas que no son parte del mensaje: hora relativa, "Activo ahora", marcas de no leído…
   const MONTH = '(?:ene|enero|feb|febrero|mar|marzo|abr|abril|may|mayo|jun|junio|jul|julio|ago|agosto|sep|sept|septiembre|oct|octubre|nov|noviembre|dic|diciembre|jan|january|february|march|apr|april|june|july|aug|august|september|october|november|dec|december)\\.?';
@@ -130,11 +130,24 @@
     return n * 10080;
   }
 
+  // ¿El último mensaje de la fila tiene MÁS DE 1 DÍA? true = viejo, false = de hoy
+  // (o de las últimas 24 h), null = no se pudo saber. Se decide por la hora que
+  // muestra la fila: "5 min" / "2 h" / "10:32" son de hoy; "25 h", "ayer", "lun",
+  // "3 oct", "2 sem" son viejos.
+  function classifyOld(label, age) {
+    if (typeof age === 'number') return age > 1440;
+    const t = String(label || '').trim();
+    if (!t) return null;
+    if (/^\d{1,2}[:.]\d{2}\s*(?:a\.?\s?m\.?|p\.?\s?m\.?)?$/i.test(t)) return false; // una hora del día = hoy
+    return TIME_RE.test(t) ? true : null; // un día de la semana, "ayer" o una fecha
+  }
+
   // Quita hora, "Activo ahora", etiquetas de no leído… y devuelve el texto del mensaje
   // (y la hora relativa de la fila, si se ve).
   function parseSnippet(lines) {
     const parts = [];
     let time = null;
+    let label = null; // la hora tal como la muestra Facebook ("5 min", "lun", "3 oct"…)
     let unreadHint = false;
     for (let line of lines) {
       // "Hola, ¿sigue disponible? · 5 min" → "Hola, ¿sigue disponible?"
@@ -142,6 +155,7 @@
         const t = tail.trim();
         // Hora conocida, o un final corto con números ("5 min", "12 sem.", "2d")
         if (TIME_RE.test(t) || (t.length <= 12 && /\d/.test(t))) {
+          if (label === null) label = t;
           if (time === null) time = ageMinutes(t);
           return '';
         }
@@ -153,6 +167,7 @@
       }
       if (!line || NOISE_RE.test(line)) continue;
       if (TIME_RE.test(line)) {
+        if (label === null) label = line;
         if (time === null) time = ageMinutes(line);
         continue;
       }
@@ -164,6 +179,8 @@
       // el margen se usa para el resto del aviso (nombre, enlace, pie de "responder").
       text: parts.join(' ').replace(/\s+/g, ' ').trim().slice(0, 1500),
       age: time,
+      label: label,
+      old: classifyOld(label, time),
       unreadHint: unreadHint
     };
   }
@@ -212,6 +229,7 @@
         name: name,
         text: sn.text,
         age: sn.age,
+        old: sn.old,
         src: 'enlaces',
         mine: MINE_RE.test(sn.text),
         // Las filas de Marketplace se ven como "Nombre · Artículo"
@@ -257,8 +275,10 @@
       const sn = parseSnippet([lines[i + 2]]);
       let end = i + 2;
       let age = sn.age;
+      let label = sn.label;
       if (lines[i + 3] && TIME_RE.test(lines[i + 3])) {
         end = i + 3;
+        if (label === null) label = lines[i + 3];
         if (age === null) age = ageMinutes(lines[i + 3]);
       }
       const key = buyer + '|' + listing;
@@ -277,6 +297,7 @@
         name: (buyer + ' · ' + listing).slice(0, 80),
         text: sn.text,
         age: age,
+        old: classifyOld(label, age),
         src: 'texto',
         link: MP_INBOX_URL,
         mine: MINE_RE.test(sn.text),
@@ -433,5 +454,5 @@
       accountSource: acct ? acct.source : ''
     };
   };
-  globalThis.mnCollectVersion = 12;
+  globalThis.mnCollectVersion = 13;
 })();

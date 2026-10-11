@@ -1,4 +1,4 @@
-/* Notificador Marketplace v0.20 — service worker (background.js)
+/* Notificador Marketplace v0.21 — service worker (background.js)
  * Recibe la lista de chats (del content script, de su propio despertador de
  * 30 segundos o del cambio de título de la pestaña) y, cuando hay un mensaje
  * nuevo sin leer, te avisa al teléfono por WhatsApp (CallMeBot) o Telegram,
@@ -23,7 +23,7 @@ const INBOX_URL = 'https://www.facebook.com/messages/';
 const COOLDOWN_MS = 60 * 1000;               // máx. 1 aviso por chat cada minuto (salvo chat "activo", ver ACTIVE_COOLDOWN_MS)
 const ACTIVE_COOLDOWN_MS = 3 * 1000;         // chats con los que contestaste hace poco: casi sin espera entre avisos
 const ACTIVE_CHAT_MS = 30 * 60 * 1000;       // minutos que un chat queda "activo" tras contestarlo desde Telegram
-const COLLECTOR_VERSION = 12;                // versión de collector.js que espera este background
+const COLLECTOR_VERSION = 13;                // versión de collector.js que espera este background
 const MP_INBOX_URL = 'https://www.facebook.com/marketplace/inbox/';
 const LOG_MAX = 200;                         // eventos que guarda el registro
 const LOG_COLLAPSE_MS = 10 * 60 * 1000;      // una misma línea repetida se cuenta (×N) en vez de inundar el registro
@@ -613,6 +613,16 @@ async function processScan(scan) {
 
     if (th.mine) { cur.handled = ''; cur.pending = false; continue; } // respondiste tú
     if (cur.text === cur.handled) { cur.pending = false; continue; }
+    // Solo mensajes de las últimas 24 horas: si la fila marca una hora de hace más
+    // de 1 día ("ayer", "lun", "3 oct", "2 sem"…) es un chat viejo (p. ej. apareció al
+    // bajar por la lista) y no se avisa. Cuando llegue un mensaje nuevo, la fila vuelve
+    // a decir "ahora" y ahí sí se avisa.
+    if (th.old === true) {
+      await skip('su último mensaje tiene más de 1 día (solo se avisa de mensajes de las últimas 24 horas).');
+      cur.handled = cur.text;
+      cur.pending = false;
+      continue;
+    }
     // ¿Es un mensaje nuevo del cliente? Sirve cualquiera de las dos señales:
     //  - Facebook lo marca "sin leer" (punto azul / negrita), o
     //  - el texto cambió y el chat está arriba de la lista (los mensajes nuevos
@@ -807,6 +817,17 @@ function bytesToBase64(bytes) {
   return btoa(binary);
 }
 
+// Tipo real de una imagen por sus primeros bytes. Telegram a veces sirve el archivo
+// como "application/octet-stream" y, con ese tipo, Facebook lo toma por un archivo
+// cualquiera (descargable) en vez de por una foto.
+function sniffImageMime(b) {
+  if (b.length > 3 && b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) return 'image/jpeg';
+  if (b.length > 7 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47) return 'image/png';
+  if (b.length > 5 && b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x38) return 'image/gif';
+  if (b.length > 11 && b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return 'image/webp';
+  return '';
+}
+
 async function downloadTelegramPhoto(s, fileId) {
   const url = await tgFileUrl(s, fileId);
   if (!url) return { error: 'Telegram no me dio la foto (el archivo puede haber expirado; vuelve a mandarla).' };
@@ -815,8 +836,12 @@ async function downloadTelegramPhoto(s, fileId) {
     if (!res.ok) return { error: 'Telegram respondió HTTP ' + res.status + ' al pedir la foto.' };
     const buf = await res.arrayBuffer();
     if (buf.byteLength > REPLY_MAX_IMAGE_BYTES) return { error: 'Esa foto es demasiado grande.' };
-    const mime = res.headers.get('content-type') || 'image/jpeg';
-    return { dataUrl: 'data:' + mime + ';base64,' + bytesToBase64(new Uint8Array(buf)), mime: mime };
+    const bytes = new Uint8Array(buf);
+    const header = String(res.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+    const sniffed = sniffImageMime(bytes);
+    if (!sniffed && !/^image\//.test(header)) return { error: 'Ese archivo no parece una imagen (JPG, PNG, GIF o WEBP).' };
+    const mime = sniffed || header; // manda lo que dicen los bytes, no la cabecera
+    return { dataUrl: 'data:' + mime + ';base64,' + bytesToBase64(bytes), mime: mime };
   } catch (e) {
     return { error: 'No pude descargar la foto de Telegram: ' + shortText(e && e.message ? e.message : e, 80) };
   }
@@ -1226,7 +1251,9 @@ async function handleTelegramMessage(msg, s) {
     await logEvent('reply', 'Ignoré un mensaje de Telegram que ya había atendido (' + who0 + 'id ' + msg.message_id + '): no se repite.');
     return;
   }
-  const photos = Array.isArray(msg.photo) && msg.photo.length ? msg.photo : null;
+  // Una foto normal, o una imagen mandada "como archivo" (documento con tipo image/*).
+  const photos = Array.isArray(msg.photo) && msg.photo.length ? msg.photo
+    : (msg.document && /^image\/(?:jpeg|png|gif|webp)$/i.test(String(msg.document.mime_type || '')) ? [msg.document] : null);
   const text = String((photos ? msg.caption : msg.text) || '').trim();
   if (!text && !photos) { await tgSay(s, 'Solo puedo enviar texto o una foto. Escribe tu respuesta, o adjunta una imagen (puedes ponerle texto como pie).', msg.message_id); return; }
   if (!photos) {
